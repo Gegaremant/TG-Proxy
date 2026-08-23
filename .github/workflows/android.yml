@@ -29,12 +29,14 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew assembleDebug
       
+    - name: Rename APK
+      run: mv app/build/outputs/apk/debug/app-debug.apk TG-Proxy-1.0.0-Android.apk
+      
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: latest
         name: "Latest Build"
-        files: app/build/outputs/apk/debug/app-debug.apk
+        files: TG-Proxy-1.0.0-Android.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

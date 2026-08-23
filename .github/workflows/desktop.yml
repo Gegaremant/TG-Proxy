@@ -36,7 +36,10 @@ jobs:
       
     - name: Build macOS
       if: matrix.os == 'macos-latest'
-      run: pyinstaller packaging/macos.spec
+      run: |
+        pyinstaller packaging/macos.spec
+        chmod +x packaging/dmg/build_dmg.sh
+        packaging/dmg/build_dmg.sh "dist/TG WS Proxy.app" "TG-Proxy" "dist/TG-Proxy-1.0.0-MAC.dmg"
       
     - name: Build Linux
       if: matrix.os == 'ubuntu-latest'
@@ -50,7 +53,10 @@ jobs:
       with:
         tag_name: latest
         name: "Latest Build"
-        files: dist/*
+        files: |
+          dist/TG-Proxy-1.0.0-Linux
+          dist/TG-Proxy-1.0.0-Windows.exe
+          dist/TG-Proxy-1.0.0-MAC.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

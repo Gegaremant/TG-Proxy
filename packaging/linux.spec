@@ -81,7 +81,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='TgWsProxy',
+    name='TG-Proxy-1.0.0-Linux',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,
