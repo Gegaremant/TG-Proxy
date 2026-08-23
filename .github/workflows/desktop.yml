@@ -1,0 +1,53 @@
+name: Desktop Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller hatch
+        pip install -e .
+        
+    - name: Build Windows
+      if: matrix.os == 'windows-latest'
+      run: pyinstaller packaging/windows.spec
+      
+    - name: Build macOS
+      if: matrix.os == 'macos-latest'
+      run: pyinstaller packaging/macos.spec
+      
+    - name: Build Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-dev
+        pyinstaller packaging/linux.spec
+        
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: latest
+        name: "Latest Build"
+        files: dist/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

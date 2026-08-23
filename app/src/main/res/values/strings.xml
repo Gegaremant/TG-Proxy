@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">TG WS Proxy</string>
+    <string name="status_running">Status: RUNNING</string>
+    <string name="status_stopped">Status: STOPPED</string>
+    <string name="start_proxy">Start Proxy</string>
+    <string name="stop_proxy">Stop Proxy</string>
+    <string name="settings">Settings</string>
+    <string name="port">Port</string>
+    <string name="secret">Secret</string>
+    <string name="fake_tls_domain">Fake TLS Domain</string>
+    <string name="save">Save</string>
+    <string name="copy_link">Copy MTProto Link</string>
+    <string name="auto_config">Auto Config</string>
+    <string name="language">Language</string>
+    <string name="show_logs">Show Logs</string>
+    <string name="github_repo">GitHub Repository</string>
+    <string name="preset_home">Preset: Home</string>
+    <string name="preset_subway">Preset: Subway</string>
+    <string name="start_on_boot_prompt">Do you want to start the proxy automatically on boot?</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="logs">Logs</string>
+    <string name="auto_config_running">Testing SNI domains...</string>
+    <string name="auto_config_done">Auto config complete!</string>
+</resources>
