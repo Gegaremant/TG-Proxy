@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v3
@@ -23,8 +23,11 @@ jobs:
         distribution: 'temurin'
         cache: gradle
         
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+      
     - name: Build with Gradle
-      run: .\gradlew.bat assembleDebug
+      run: ./gradlew assembleDebug
       
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
