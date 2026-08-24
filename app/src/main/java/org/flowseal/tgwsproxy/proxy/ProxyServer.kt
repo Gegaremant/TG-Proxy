@@ -22,6 +22,8 @@ class ProxyServer(
     private val port: Int = 1080,
     private val secret: String,
     private val fakeTlsDomain: String,
+    private val useCfProxy: Boolean = false,
+    private val cfProxyDomain: String = "",
     private val dcOpt: Map<Int, String> = mapOf(2 to "149.154.167.220", 4 to "149.154.167.220"),
     private val poolSize: Int = 4,
     private val bufKb: Int = 256,
@@ -234,31 +236,45 @@ class ProxyServer(
             var wsFailedRedirect = false
             var allRedirects = true
 
-            ws = wsPool.get(dc, isMedia, target, domains)
-            if (ws != null) {
-                log("[$label] DC$dc$mediaTag -> pool hit via $target")
-            } else {
-                for (domain in domains) {
-                    val url = "wss://$domain/apiws"
-                    log("[$label] DC$dc$mediaTag -> $url via $target")
-                    try {
-                        ws = RawWebSocket.connect(target, domain, timeoutMs = wsTimeout)
-                        allRedirects = false
-                        break
-                    } catch (e: WsHandshakeError) {
-                        stats.wsErrors.incrementAndGet()
-                        if (e.isRedirect) {
-                            wsFailedRedirect = true
-                            Log.w(TAG, "[$label] DC$dc$mediaTag got ${e.statusCode} from $domain -> ${e.location}")
-                            continue
-                        } else {
+            if (useCfProxy && cfProxyDomain.isNotBlank()) {
+                val cfDomain = "kws$dc.$cfProxyDomain"
+                log("[$label] DC$dc$mediaTag -> CF Proxy wss://$cfDomain/apiws")
+                try {
+                    ws = RawWebSocket.connect(cfDomain, cfDomain, timeoutMs = wsTimeout)
+                    allRedirects = false
+                } catch (e: Exception) {
+                    stats.wsErrors.incrementAndGet()
+                    log("[$label] DC$dc$mediaTag CF Proxy failed: $e")
+                }
+            }
+
+            if (ws == null) {
+                ws = wsPool.get(dc, isMedia, target, domains)
+                if (ws != null) {
+                    log("[$label] DC$dc$mediaTag -> pool hit via $target")
+                } else {
+                    for (domain in domains) {
+                        val url = "wss://$domain/apiws"
+                        log("[$label] DC$dc$mediaTag -> $url via $target")
+                        try {
+                            ws = RawWebSocket.connect(target, domain, timeoutMs = wsTimeout)
                             allRedirects = false
-                            Log.w(TAG, "[$label] DC$dc$mediaTag WS handshake: ${e.statusLine}")
+                            break
+                        } catch (e: WsHandshakeError) {
+                            stats.wsErrors.incrementAndGet()
+                            if (e.isRedirect) {
+                                wsFailedRedirect = true
+                                Log.w(TAG, "[$label] DC$dc$mediaTag got ${e.statusCode} from $domain -> ${e.location}")
+                                continue
+                            } else {
+                                allRedirects = false
+                                Log.w(TAG, "[$label] DC$dc$mediaTag WS handshake: ${e.statusLine}")
+                            }
+                        } catch (e: Exception) {
+                            stats.wsErrors.incrementAndGet()
+                            allRedirects = false
+                            Log.w(TAG, "[$label] DC$dc$mediaTag WS connect failed: $e")
                         }
-                    } catch (e: Exception) {
-                        stats.wsErrors.incrementAndGet()
-                        allRedirects = false
-                        Log.w(TAG, "[$label] DC$dc$mediaTag WS connect failed: $e")
                     }
                 }
             }

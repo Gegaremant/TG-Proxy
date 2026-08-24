@@ -78,6 +78,14 @@ class ProxyConfig(context: Context) {
         get() = prefs.getBoolean("first_launch", true)
         set(value) = prefs.edit().putBoolean("first_launch", value).apply()
 
+    var useCfProxy: Boolean
+        get() = prefs.getBoolean("use_cf_proxy", true)
+        set(value) = prefs.edit().putBoolean("use_cf_proxy", value).apply()
+
+    var cfProxyDomain: String
+        get() = prefs.getString("cf_proxy_domain", "") ?: ""
+        set(value) = prefs.edit().putString("cf_proxy_domain", value).apply()
+
     fun parseDcOpt(): Map<Int, String> {
         val result = mutableMapOf<Int, String>()
         for (entry in dcIps) {

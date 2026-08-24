@@ -595,6 +595,31 @@ fun SettingsPanel(
                 }
             }
 
+            var useCfProxy by remember { mutableStateOf(config.useCfProxy) }
+            var cfProxyDomain by remember { mutableStateOf(config.cfProxyDomain) }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Включить CF-прокси")
+                Switch(
+                    checked = useCfProxy,
+                    onCheckedChange = { useCfProxy = it }
+                )
+            }
+
+            if (useCfProxy) {
+                OutlinedTextField(
+                    value = cfProxyDomain,
+                    onValueChange = { cfProxyDomain = it },
+                    label = { Text("Свой домен (например: proxy.com)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+
             OutlinedTextField(
                 value = secret,
                 onValueChange = { secret = it },
@@ -640,6 +665,8 @@ fun SettingsPanel(
                     config.port = port.toIntOrNull() ?: 10800
                     config.secret = secret
                     config.fakeTlsDomain = fakeTlsDomain
+                    config.useCfProxy = useCfProxy
+                    config.cfProxyDomain = cfProxyDomain
                     onRestart()
                     onClose()
                 },

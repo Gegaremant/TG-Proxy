@@ -33,6 +33,7 @@ class ProxyService : Service() {
 
     private var proxyServer: ProxyServer? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: android.net.wifi.WifiManager.WifiLock? = null
     private val logBuffer = mutableListOf<String>()
     private val maxLogLines = 200
 
@@ -90,6 +91,8 @@ class ProxyService : Service() {
             port = config.port,
             secret = config.secret,
             fakeTlsDomain = config.fakeTlsDomain,
+            useCfProxy = config.useCfProxy,
+            cfProxyDomain = config.cfProxyDomain,
             dcOpt = dcOpt.ifEmpty { mapOf(2 to "149.154.167.220", 4 to "149.154.167.220") },
             poolSize = config.poolSize,
             bufKb = config.bufKb,
@@ -181,6 +184,15 @@ class ProxyService : Service() {
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TgWsProxy::ProxyWakeLock")
         wakeLock?.acquire()
+
+        try {
+            val wm = applicationContext.getSystemService(WIFI_SERVICE) as android.net.wifi.WifiManager
+            @Suppress("DEPRECATION")
+            wifiLock = wm.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "TgWsProxy::WifiLock")
+            wifiLock?.acquire()
+        } catch (e: Exception) {
+            addLog("Failed to acquire WifiLock: ${e.message}")
+        }
     }
 
     private fun releaseWakeLock() {
@@ -188,5 +200,10 @@ class ProxyService : Service() {
             if (it.isHeld) it.release()
         }
         wakeLock = null
+
+        wifiLock?.let {
+            if (it.isHeld) it.release()
+        }
+        wifiLock = null
     }
 }
