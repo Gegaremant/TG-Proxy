@@ -39,7 +39,7 @@ jobs:
       run: |
         pyinstaller packaging/macos.spec
         chmod +x packaging/dmg/build_dmg.sh
-        packaging/dmg/build_dmg.sh "dist/TG WS Proxy.app" "TG-Proxy" "dist/TG-Proxy-1.0.1-MAC.dmg"
+        packaging/dmg/build_dmg.sh "dist/TG WS Proxy.app" "TG-Proxy" "dist/TG-Proxy-1.0.2-MAC.dmg"
       
     - name: Build Linux
       if: matrix.os == 'ubuntu-latest'
@@ -51,12 +51,12 @@ jobs:
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.0.1
-        name: "TG-Proxy-1.0.1"
+        tag_name: v1.0.2
+        name: "TG-Proxy-1.0.2"
         files: |
-          dist/TG-Proxy-1.0.1-Linux
-          dist/TG-Proxy-1.0.1-Windows.exe
-          dist/TG-Proxy-1.0.1-MAC.dmg
+          dist/TG-Proxy-1.0.2-Linux
+          dist/TG-Proxy-1.0.2-Windows.exe
+          dist/TG-Proxy-1.0.2-MAC.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

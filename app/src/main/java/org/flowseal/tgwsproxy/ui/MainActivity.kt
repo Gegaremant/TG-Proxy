@@ -318,19 +318,56 @@ fun MainScreen(
         ) {
             StatusCard(isRunning, statsText, config)
 
+            var isStarting by remember { mutableStateOf(false) }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (!isRunning) {
                     Button(
-                        onClick = onStart,
+                        onClick = {
+                            if (isStarting) return@Button
+                            isStarting = true
+                            scope.launch {
+                                // Auto-config
+                                val bestSni = withContext(Dispatchers.IO) {
+                                    var best = config.fakeTlsDomain.ifBlank { "sberbank.ru" }
+                                    var bestTime = Long.MAX_VALUE
+                                    for (sni in DEFAULT_SNI_LIST.shuffled().take(10)) {
+                                        try {
+                                            val start = System.currentTimeMillis()
+                                            val socket = Socket()
+                                            socket.connect(InetSocketAddress(sni, 443), 1500)
+                                            socket.close()
+                                            val time = System.currentTimeMillis() - start
+                                            if (time < bestTime) {
+                                                bestTime = time
+                                                best = sni
+                                            }
+                                        } catch (_: Exception) {}
+                                    }
+                                    best
+                                }
+                                config.fakeTlsDomain = bestSni
+                                onStart()
+                                isStarting = false
+                            }
+                        },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(stringResource(R.string.start_proxy))
+                        if (isStarting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isStarting) stringResource(R.string.auto_config_running) else stringResource(R.string.start_proxy))
                     }
                 } else {
                     Button(
@@ -345,44 +382,45 @@ fun MainScreen(
                 }
             }
 
-            val clipboardManager = LocalClipboardManager.current
-            val generateProxyLink = {
-                val base = "tg://proxy?server=${config.host}&port=${config.port}&secret="
-                val secretPart = if (config.fakeTlsDomain.isNotEmpty()) {
-                    "ee" + config.secret + config.fakeTlsDomain.toByteArray().joinToString("") { "%02x".format(it) }
-                } else {
-                    "dd" + config.secret
-                }
-                base + secretPart
-            }
-
-            OutlinedButton(
-                onClick = {
-                    val url = generateProxyLink()
-                    clipboardManager.setText(AnnotatedString(url))
-                    Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(stringResource(R.string.copy_link))
-            }
-
-
-            OutlinedButton(
-                onClick = {
-                    try {
-                        val uri = android.net.Uri.parse(generateProxyLink())
-                        val intent = Intent(Intent.ACTION_VIEW, uri)
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Telegram not installed", Toast.LENGTH_SHORT).show()
+            if (isRunning) {
+                val clipboardManager = LocalClipboardManager.current
+                val generateProxyLink = {
+                    val base = "tg://proxy?server=${config.host}&port=${config.port}&secret="
+                    val secretPart = if (config.fakeTlsDomain.isNotEmpty()) {
+                        "ee" + config.secret + config.fakeTlsDomain.toByteArray().joinToString("") { "%02x".format(it) }
+                    } else {
+                        "dd" + config.secret
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Open in Telegram")
+                    base + secretPart
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val url = generateProxyLink()
+                        clipboardManager.setText(AnnotatedString(url))
+                        Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(stringResource(R.string.copy_link))
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val uri = android.net.Uri.parse(generateProxyLink())
+                            val intent = Intent(Intent.ACTION_VIEW, uri)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Telegram not installed", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open in Telegram")
+                }
             }
 
             if (showSettings) {
