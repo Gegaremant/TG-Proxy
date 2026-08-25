@@ -232,11 +232,14 @@ class RawWebSocket private constructor(
     private fun readFrame(): Pair<Int, ByteArray> {
         val hdr = ByteArray(2)
         try {
+            socket.soTimeout = 20000 // 20s timeout for idle detection
             val b0 = input.read()
             if (b0 == -1) throw java.io.EOFException("Connection closed")
             hdr[0] = b0.toByte()
         } catch (e: java.net.SocketTimeoutException) {
             throw IdleTimeoutException()
+        } finally {
+            try { socket.soTimeout = 0 } catch (_: Exception) {} // Disable timeout for the rest of the frame
         }
 
         val b1 = input.read()

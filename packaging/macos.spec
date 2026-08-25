@@ -94,8 +94,8 @@ app = BUNDLE(
     info_plist={
         'CFBundleName': 'TG WS Proxy',
         'CFBundleDisplayName': 'TG WS Proxy',
-        'CFBundleShortVersionString': '1.0.2',
-        'CFBundleVersion': '1.0.2',
+        'CFBundleShortVersionString': '1.0.3',
+        'CFBundleVersion': '1.0.3',
         'LSMinimumSystemVersion': '10.15',
         'LSUIElement': True,
         'NSHighResolutionCapable': True,

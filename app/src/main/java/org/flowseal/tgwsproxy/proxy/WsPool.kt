@@ -8,7 +8,7 @@ import java.util.concurrent.LinkedBlockingDeque
  * WebSocket connection pool, keeping idle connections per DC.
  * Port of the Python _WsPool class.
  */
-class WsPool(private val poolSize: Int = 4, private val maxAgeMs: Long = 120_000L) {
+class WsPool(private val poolSize: Int = 4, private val maxAgeMs: Long = 25_000L) {
 
     private val TAG = "WsPool"
 
