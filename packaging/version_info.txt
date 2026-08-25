@@ -21,12 +21,12 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName', u'Gegaremant labs'),
             StringStruct(u'FileDescription', u'Telegram Desktop WebSocket Bridge Proxy'),
-            StringStruct(u'FileVersion', u'1.0.3.0'),
+            StringStruct(u'FileVersion', u'1.0.4.0'),
             StringStruct(u'InternalName', u'TgWsProxy'),
             StringStruct(u'LegalCopyright', u'Copyright (c) Gegaremant labs. MIT License.'),
             StringStruct(u'OriginalFilename', u'TgWsProxy.exe'),
             StringStruct(u'ProductName', u'TG Proxy'),
-            StringStruct(u'ProductVersion', u'1.0.3.0'),
+            StringStruct(u'ProductVersion', u'1.0.4.0'),
           ]
         )
       ]
