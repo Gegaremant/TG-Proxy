@@ -88,14 +88,14 @@ coll = COLLECT(
 
 app = BUNDLE(
     coll,
-    name='TG WS Proxy.app',
+    name='TG FREE with 🖤 From KatYa && Gegaremant.app',
     icon=icon_path,
     bundle_identifier='com.tgwsproxy.app',
     info_plist={
-        'CFBundleName': 'TG WS Proxy',
-        'CFBundleDisplayName': 'TG WS Proxy',
-        'CFBundleShortVersionString': '1.0.4',
-        'CFBundleVersion': '1.0.4',
+        'CFBundleName': 'TG FREE with 🖤 From KatYa && Gegaremant',
+        'CFBundleDisplayName': 'TG FREE with 🖤 From KatYa && Gegaremant',
+        'CFBundleShortVersionString': '1.0.5',
+        'CFBundleVersion': '1.0.5',
         'LSMinimumSystemVersion': '10.15',
         'LSUIElement': True,
         'NSHighResolutionCapable': True,

@@ -531,17 +531,9 @@ def install_tray_config_form(
     )
     fake_tls_col.pack(side="left", fill="x", expand=True, padx=(0, 10))
     
-    # Presets
+    # Connection presets / utilities
     preset_row = ctk.CTkFrame(conn, fg_color="transparent")
     preset_row.pack(fill="x", pady=(4, 0))
-    def _preset_home():
-        import random
-        port_var.set(str(random.randint(10000, 60000)))
-        fake_tls_var.set("sberbank.ru")
-    def _preset_subway():
-        import random
-        port_var.set(str(random.randint(10000, 60000)))
-        fake_tls_var.set("ya.ru")
     def _auto_config():
         import threading
         import socket
@@ -564,8 +556,6 @@ def install_tray_config_form(
             except Exception: pass
         threading.Thread(target=w, daemon=True).start()
     
-    ctk.CTkButton(preset_row, text="Preset: Home", command=_preset_home, width=90).pack(side="left", padx=2)
-    ctk.CTkButton(preset_row, text="Preset: Subway", command=_preset_subway, width=90).pack(side="left", padx=2)
     ctk.CTkButton(preset_row, text="Auto Config", command=_auto_config, width=90, fg_color="#f59e0b").pack(side="left", padx=2)
 
     dc_inner = _config_section(ctk, frame, theme, t("section.dc"))

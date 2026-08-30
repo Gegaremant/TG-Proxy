@@ -48,12 +48,30 @@ object CryptoHelper {
     }
 
     fun createAesCtr(key: ByteArray, iv: ByteArray, mode: Int): Cipher {
-        val cipher = Cipher.getInstance("AES/CTR/NoPadding")
-        cipher.init(mode, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
-        return cipher
+        return try {
+            val cipher = Cipher.getInstance("AES/CTR/NoPadding")
+            cipher.init(mode, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+            cipher
+        } catch (e: Exception) {
+            // Fallback to Bouncy Castle provider if default provider fails (e.g., on older Android)
+            val cipher = Cipher.getInstance("AES/CTR/NoPadding", "BC")
+            cipher.init(mode, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+            cipher
+        }
     }
 
     fun buildCryptoCtx(clientDecPrekeyIv: ByteArray, secret: ByteArray, relayInit: ByteArray): CryptoCtx {
+        // Validate inputs to prevent NullPointerException
+        if (clientDecPrekeyIv.size < 48) {
+            throw IllegalArgumentException("clientDecPrekeyIv must be at least 48 bytes, got ${clientDecPrekeyIv.size}")
+        }
+        if (secret.isEmpty()) {
+            throw IllegalArgumentException("Secret cannot be empty")
+        }
+        if (relayInit.size < 56) {
+            throw IllegalArgumentException("relayInit must be at least 56 bytes, got ${relayInit.size}")
+        }
+        
         // clt_dec
         val cltDecPrekey = clientDecPrekeyIv.copyOfRange(0, 32)
         val cltDecIv = clientDecPrekeyIv.copyOfRange(32, 48)
@@ -87,8 +105,10 @@ object CryptoHelper {
     }
 
     fun generateRelayInit(protoTag: ByteArray, dcIdx: Int): ByteArray {
-        var rnd: ByteArray
-        while (true) {
+        var rnd: ByteArray = Random.nextBytes(64)
+        var attempts = 0
+        while (attempts < 100) {
+            attempts++
             rnd = Random.nextBytes(64)
             if (rnd[0] in RESERVED_FIRST_BYTES) continue
             val start4 = rnd.copyOfRange(0, 4)
@@ -96,6 +116,10 @@ object CryptoHelper {
             val start4_8 = rnd.copyOfRange(4, 8)
             if (start4_8.contentEquals(RESERVED_CONTINUE)) continue
             break
+        }
+        if (attempts >= 100) {
+            // Fallback: generate a random 64-byte array without restrictions
+            rnd = Random.nextBytes(64)
         }
 
         val encKey = rnd.copyOfRange(8, 40)

@@ -13,14 +13,14 @@
 ## Features
 * **Fully Cross-Platform**: One app for Android (Jetpack Compose) and Desktop (CustomTkinter).
 * **Auto Config**: Built-in latency scanner that iterates through dozens of pre-configured SNI domains (e.g., `sberbank.ru`, `vk.com`) and automatically selects the one with the lowest ping for FakeTLS traffic masking.
-* **Presets**: Convenient "Home" and "Subway" profiles generating random high-range ports to avoid access restrictions and firewall rules (moving away from static 443/1080 ports).
 * **Undetectable**: Masks traffic as ordinary HTTPS (TLS) using an `ee` secret format.
+* **Dark/Light Theme**: Toggle it right in the app header.
+* **Upstream SOCKS5**: Optional external SOCKS5 proxy (e.g., Hiddify) for all outbound traffic.
 
 ## Repository Structure
 * `app/`, `gradle/` — Android app source code (Kotlin / Jetpack Compose).
 * `proxy/`, `ui/`, `utils/`, `*.py` — Desktop app source code (Python / CustomTkinter for Windows, Linux, and macOS).
 * `.gitignore` — Git ignore rules.
-* `SNI_list.txt` — List of FakeTLS domains.
 * `icon.png` / `5.jpg` — Project graphic assets.
 
 ## Building from source

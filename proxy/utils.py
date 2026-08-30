@@ -73,16 +73,8 @@ def human_bytes(n: int) -> str:
 
 
 def get_link_host(host: str) -> Optional[str]:
-    if host == '0.0.0.0':
-        try:
-            with _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM) as _s:
-                _s.connect(('8.8.8.8', 80))
-                link_host = _s.getsockname()[0]
-        except OSError:
-            link_host = '127.0.0.1'
-        return link_host
-    else:
-        return host
+    # Показываем только стандартный localhost — реальный IP адрес не светим.
+    return '127.0.0.1'
 
 
 class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):

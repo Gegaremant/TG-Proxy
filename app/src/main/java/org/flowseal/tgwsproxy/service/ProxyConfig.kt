@@ -12,7 +12,7 @@ class ProxyConfig(context: Context) {
         context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE)
 
     var host: String
-        get() = prefs.getString("host", "127.0.0.1")!!
+        get() = prefs.getString("host", "0.0.0.0")!!
         set(value) = prefs.edit().putString("host", value).apply()
 
     var port: Int
@@ -85,6 +85,39 @@ class ProxyConfig(context: Context) {
     var cfProxyDomain: String
         get() = prefs.getString("cf_proxy_domain", "") ?: ""
         set(value) = prefs.edit().putString("cf_proxy_domain", value).apply()
+
+    /**
+     * Cloudflare Worker domain (e.g. "mwapp-is-super.workers.dev"). When set,
+     * the proxy relays via  wss://{domain}/apiws?dst={dc_ip}&dc={dc}  following
+     * the desktop (Python) cf_worker fallback. Empty = disabled.
+     */
+    var cfWorkerDomain: String
+        get() = prefs.getString("cf_worker_domain", "") ?: ""
+        set(value) = prefs.edit().putString("cf_worker_domain", value).apply()
+
+    /**
+     * Upstream SOCKS5 proxy for all outbound connections, e.g. Hiddify's
+     * local port ("127.0.0.1:2334"). Empty = connect directly.
+     */
+    var upstreamProxy: String
+        get() = prefs.getString("upstream_proxy", "") ?: ""
+        set(value) = prefs.edit().putString("upstream_proxy", value).apply()
+
+    /**
+     * DNS servers (comma/newline separated) used for manual DNS resolution of
+     * CF proxy domains when the system DNS cannot resolve them. Empty = use
+     * the built-in default list (public + known ISP resolvers).
+     */
+    var dnsServers: String
+        get() = prefs.getString("dns_servers", "") ?: ""
+        set(value) = prefs.edit().putString("dns_servers", value).apply()
+
+    fun parseDnsServers(): List<String> {
+        val raw = dnsServers
+        return raw.split(',', ';', ' ', '\n')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+    }
 
     fun parseDcOpt(): Map<Int, String> {
         val result = mutableMapOf<Int, String>()

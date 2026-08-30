@@ -14,6 +14,7 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import org.flowseal.tgwsproxy.R
+import org.flowseal.tgwsproxy.proxy.CfDomains
 import org.flowseal.tgwsproxy.proxy.ProxyServer
 import org.flowseal.tgwsproxy.proxy.Stats
 import org.flowseal.tgwsproxy.ui.MainActivity
@@ -29,11 +30,16 @@ class ProxyService : Service() {
         private const val CHANNEL_ID = "tg_ws_proxy"
         private const val NOTIFICATION_ID = 1
         const val ACTION_STOP = "org.flowseal.tgwsproxy.STOP"
+        const val ACTION_RESTART = "org.flowseal.tgwsproxy.RESTART"
+
+        // Re-acquire the wake lock before the system's 30-min expiry on some OEMs.
+        private const val WAKELOCK_REFRESH_MS = 25L * 60 * 1000
     }
 
     private var proxyServer: ProxyServer? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: android.net.wifi.WifiManager.WifiLock? = null
+    private var wakeLockRefreshThread: Thread? = null
     private val logBuffer = mutableListOf<String>()
     private val maxLogLines = 200
 
@@ -56,11 +62,17 @@ class ProxyService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopProxy()
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_STOP -> {
+                stopProxy()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_RESTART -> {
+                restartProxy()
+                return START_STICKY
+            }
         }
 
         startForegroundWithNotification()
@@ -76,11 +88,27 @@ class ProxyService : Service() {
         super.onDestroy()
     }
 
+    /** Service survives a swipe from recents thanks to stopWithTask=false in the manifest. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        if (proxyServer?.isRunning == true) {
+            Log.w(TAG, "onTaskRemoved: proxy is running, service stays alive")
+        }
+    }
+
     private fun startProxy() {
         if (proxyServer?.isRunning == true) return
 
         val config = ProxyConfig(this)
         val dcOpt = config.parseDcOpt()
+
+        CfDomains.startAutoRefresh()
+
+        val customDns = config.parseDnsServers()
+        if (customDns.isNotEmpty()) {
+            org.flowseal.tgwsproxy.proxy.DnsResolver.servers = customDns
+            addLog("DNS resolver servers: ${customDns.joinToString()}")
+        }
 
         if (dcOpt.isEmpty()) {
             addLog("No DC IPs configured, using defaults")
@@ -93,13 +121,20 @@ class ProxyService : Service() {
             fakeTlsDomain = config.fakeTlsDomain,
             useCfProxy = config.useCfProxy,
             cfProxyDomain = config.cfProxyDomain,
-            dcOpt = dcOpt.ifEmpty { mapOf(2 to "149.154.167.220", 4 to "149.154.167.220") },
+            cfWorkerDomain = config.cfWorkerDomain,
+            upstreamProxy = config.upstreamProxy,
+            dcOpt = dcOpt,
             poolSize = config.poolSize,
             bufKb = config.bufKb,
             onLog = { msg -> addLog(msg) }
         )
         proxyServer!!.start()
-        updateNotification("Running on ${config.host}:${config.port}")
+        addLog("Config: host=127.0.0.1 port=${config.port} fakeTls=${config.fakeTlsDomain} cf=${config.useCfProxy}")
+        if (config.upstreamProxy.isNotBlank()) {
+            addLog("Upstream SOCKS5: ${config.upstreamProxy}")
+        }
+        addLog("Clients connect via 127.0.0.1:${config.port}")
+        updateNotification("Running on localhost:${config.port}")
     }
 
     fun stopProxy() {
@@ -153,13 +188,26 @@ class ProxyService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val restartIntent = Intent(this, ProxyService::class.java).apply {
+            action = ACTION_RESTART
+        }
+        val restartPending = PendingIntent.getService(
+            this, 2, restartIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("TG WS Proxy")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(openPending)
-            .addAction(0, "Stop", stopPending)
+            .addAction(android.R.drawable.ic_popup_sync, getString(R.string.notification_restart), restartPending)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.notification_disconnect), stopPending)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
@@ -193,9 +241,30 @@ class ProxyService : Service() {
         } catch (e: Exception) {
             addLog("Failed to acquire WifiLock: ${e.message}")
         }
+
+        // Re-acquire periodically so OEMs don't expire our PARTIAL wakelock.
+        wakeLockRefreshThread = Thread({
+            while (!Thread.currentThread().isInterrupted) {
+                try {
+                    Thread.sleep(WAKELOCK_REFRESH_MS)
+                } catch (_: InterruptedException) {
+                    return@Thread
+                }
+                try {
+                    wakeLock?.let {
+                        if (it.isHeld) it.release()
+                    }
+                    wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TgWsProxy::ProxyWakeLock")
+                    wakeLock?.acquire()
+                } catch (_: Exception) {}
+            }
+        }, "TgWsProxy::WakeLockRefresh").apply { isDaemon = true; start() }
     }
 
     private fun releaseWakeLock() {
+        wakeLockRefreshThread?.interrupt()
+        wakeLockRefreshThread = null
+
         wakeLock?.let {
             if (it.isHeld) it.release()
         }

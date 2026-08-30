@@ -14,12 +14,19 @@
     <string name="language">Language</string>
     <string name="show_logs">Show Logs</string>
     <string name="github_repo">GitHub Repository</string>
-    <string name="preset_home">Preset: Home</string>
-    <string name="preset_subway">Preset: Subway</string>
     <string name="start_on_boot_prompt">Do you want to start the proxy automatically on boot?</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="logs">Logs</string>
+    <string name="save_logs">Save Logs to File</string>
+    <string name="logs_saved">Logs saved to %1$s</string>
+    <string name="logs_save_failed">Failed to save logs</string>
+    <string name="logs_empty">No logs to save</string>
     <string name="auto_config_running">Testing SNI domains...</string>
     <string name="auto_config_done">Auto config complete!</string>
+    <string name="notification_restart">Restart</string>
+    <string name="notification_disconnect">Stop</string>
+    <string name="battery_optimization_disable">Disable battery optimization</string>
+    <string name="battery_optimization_off">Battery optimization is already disabled</string>
+    <string name="app_version">Version 1.0.5</string>
 </resources>

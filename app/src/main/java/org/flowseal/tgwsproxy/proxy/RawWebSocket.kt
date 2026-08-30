@@ -50,16 +50,39 @@ class RawWebSocket private constructor(
 
         /**
          * Connect via TLS to the given IP, perform WebSocket upgrade.
+         * @param socks5Proxy optional upstream SOCKS5 proxy ("host:port").
+         *   When set, TCP goes through it and the target hostname is resolved
+         *   by the proxy (so DNS blocks on the local network are bypassed).
          * @throws WsHandshakeError on non-101 response
          */
-        fun connect(ip: String, domain: String, path: String = "/apiws", timeoutMs: Int = 10000): RawWebSocket {
-            val rawSocket = Socket()
-            rawSocket.connect(InetSocketAddress(ip, 443), timeoutMs)
+        fun connect(
+            ip: String,
+            domain: String,
+            path: String = "/apiws",
+            timeoutMs: Int = 10000,
+            socks5Proxy: String? = null
+        ): RawWebSocket {
+            val connectHost = if (isIpLiteral(ip)) ip else domain
+            val rawSocket: Socket
+
+            if (socks5Proxy != null && socks5Proxy.isNotBlank()) {
+                val (proxyHost, proxyPort) = Socks5.parseHostPort(socks5Proxy)
+                    ?: throw java.io.IOException("Invalid SOCKS5 proxy: $socks5Proxy")
+                rawSocket = Socks5.connect(proxyHost, proxyPort, connectHost, 443, timeoutMs)
+                    ?: throw java.io.IOException(
+                        "SOCKS5 connect to $connectHost:443 via $socks5Proxy failed"
+                    )
+            } else {
+                val connectIp = resolveConnectAddress(connectHost, timeoutMs)
+                rawSocket = Socket()
+                rawSocket.connect(InetSocketAddress(connectIp, 443), timeoutMs)
+            }
+
             rawSocket.soTimeout = timeoutMs
             rawSocket.tcpNoDelay = true
             rawSocket.keepAlive = true
-            rawSocket.setSendBufferSize(256 * 1024)
-            rawSocket.setReceiveBufferSize(256 * 1024)
+            rawSocket.setSendBufferSize(1024 * 1024)
+            rawSocket.setReceiveBufferSize(1024 * 1024)
 
             val sslSocket = sslContext.socketFactory.createSocket(
                 rawSocket, domain, 443, true
@@ -136,6 +159,36 @@ class RawWebSocket private constructor(
                 statusCode, firstLine,
                 headers, headers["location"]
             )
+        }
+
+        /**
+         * Resolve the address to connect to. If [ip] is already an IP literal,
+         * use it as-is. Otherwise (a hostname, e.g. a Cloudflare proxy domain)
+         * resolve it via the system DNS first, then fall back to the manual
+         * resolver that queries public/ISP DNS servers directly.
+         */
+        private fun resolveConnectAddress(ip: String, timeoutMs: Int): String {
+            if (ip.isBlank()) throw java.net.UnknownHostException("Empty host")
+
+            // Fast path: it's already an IP address.
+            if (isIpLiteral(ip)) return ip
+
+            // Hostname: DNS through DnsResolver (system + public DNS fallback).
+            val resolved = DnsResolver.resolve(ip, timeoutMs)
+            if (resolved != null) return resolved
+
+            throw java.net.UnknownHostException("Cannot resolve $ip")
+        }
+
+        private fun isIpLiteral(ip: String): Boolean {
+            // IPv4
+            val parts = ip.split('.')
+            if (parts.size == 4 && parts.all { it.isNotEmpty() && it.all { c -> c.isDigit() } &&
+                    (it.toIntOrNull()?.let { n -> n in 0..255 } ?: false) }) {
+                return true
+            }
+            // IPv6
+            return ip.contains(':') && ip.count { it == ':' } >= 2
         }
     }
 

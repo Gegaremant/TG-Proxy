@@ -14,6 +14,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -29,6 +30,9 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,7 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -109,17 +113,6 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                try {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                    intent.data = Uri.parse("package:$packageName")
-                    startActivity(intent)
-                } catch (_: Exception) {}
             }
         }
 
@@ -256,6 +249,39 @@ fun MainScreen(
     var showFirstLaunchPrompt by remember { mutableStateOf(config.isFirstLaunch) }
     
     val scope = rememberCoroutineScope()
+    var savedToast by remember { mutableStateOf<String?>(null) }
+    savedToast?.let {
+        Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+        savedToast = null
+    }
+
+    val saveLogsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = logs.joinToString("\n")
+        if (text.isEmpty()) {
+            savedToast = context.getString(R.string.logs_empty)
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(text.toByteArray(Charsets.UTF_8))
+                        true
+                    } ?: false
+                }
+                savedToast = if (saved) {
+                    context.getString(R.string.logs_saved, uri.lastPathSegment ?: "")
+                } else {
+                    context.getString(R.string.logs_save_failed)
+                }
+            } catch (_: Exception) {
+                savedToast = context.getString(R.string.logs_save_failed)
+            }
+        }
+    }
 
     LaunchedEffect(bound.value) {
         while (true) {
@@ -306,13 +332,30 @@ fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
+                title = {
+                    Text(
+                        "TG FREE with 🖤 From KatYa && Gegaremant",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontSize = 13.sp
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
                     actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
+                    IconButton(onClick = {
+                        val newMode = if (themeMode == "dark") "light" else "dark"
+                        onThemeModeChanged(newMode)
+                    }) {
+                        Icon(
+                            if (themeMode == "dark") Icons.Default.LightMode else Icons.Default.DarkMode,
+                            "Toggle theme"
+                        )
+                    }
                     IconButton(onClick = { showSettings = !showSettings }) {
                         Icon(Icons.Default.Settings, "Settings")
                     }
@@ -330,6 +373,26 @@ fun MainScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             StatusCard(isRunning, statsText, config)
+
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val batteryOptimized = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                    !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+            if (batteryOptimized) {
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                            intent.data = Uri.parse("package:${context.packageName}")
+                            context.startActivity(intent)
+                        } catch (_: Exception) {}
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Warning, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.battery_optimization_disable))
+                }
+            }
 
             var isStarting by remember { mutableStateOf(false) }
 
@@ -398,7 +461,8 @@ fun MainScreen(
             if (isRunning) {
                 val clipboardManager = LocalClipboardManager.current
                 val generateProxyLink = {
-                    val base = "tg://proxy?server=${config.host}&port=${config.port}&secret="
+                    val serverIp = "127.0.0.1"
+                    val base = "tg://proxy?server=$serverIp&port=${config.port}&secret="
                     val secretPart = if (config.fakeTlsDomain.isNotEmpty()) {
                         "ee" + config.secret + config.fakeTlsDomain.toByteArray().joinToString("") { "%02x".format(it) }
                     } else {
@@ -448,7 +512,20 @@ fun MainScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text(stringResource(R.string.logs) + if (logsExpanded) " (Collapse)" else " (Expand)", style = MaterialTheme.typography.titleSmall)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(stringResource(R.string.logs) + if (logsExpanded) " (Collapse)" else " (Expand)", style = MaterialTheme.typography.titleSmall)
+                            TextButton(onClick = {
+                                saveLogsLauncher.launch("tg_proxy_logs_${System.currentTimeMillis()}.txt")
+                            }) {
+                                Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(stringResource(R.string.save_logs))
+                            }
+                        }
                         if (logsExpanded) {
                             Spacer(Modifier.height(8.dp))
                             for (line in logs.takeLast(50)) {
@@ -468,14 +545,22 @@ fun MainScreen(
             Spacer(Modifier.weight(1f))
 
             // GitHub Link
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_github),
+                contentDescription = stringResource(R.string.github_repo),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(30.dp)
+                    .clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Gegaremant/TG-Proxy"))
+                        context.startActivity(intent)
+                    }
+            )
+            Spacer(Modifier.height(8.dp))
             Text(
-                text = stringResource(R.string.github_repo),
-                color = MaterialTheme.colorScheme.primary,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Gegaremant/TG-Proxy"))
-                    context.startActivity(intent)
-                }
+                text = stringResource(R.string.app_version),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp
             )
         }
     }
@@ -565,29 +650,6 @@ fun SettingsPanel(
         ) {
             Text(stringResource(R.string.settings), style = MaterialTheme.typography.titleMedium)
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    val rndPort = (10000..60000).random()
-                    config.port = rndPort
-                    config.fakeTlsDomain = "sberbank.ru"
-                    port = rndPort.toString()
-                    fakeTlsDomain = "sberbank.ru"
-                    onRestart()
-                }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.preset_home))
-                }
-                Button(onClick = {
-                    val rndPort = (10000..60000).random()
-                    config.port = rndPort
-                    config.fakeTlsDomain = "ya.ru"
-                    port = rndPort.toString()
-                    fakeTlsDomain = "ya.ru"
-                    onRestart()
-                }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.preset_subway))
-                }
-            }
-
             Button(onClick = {
                 if (isAutoConfiguring) return@Button
                 isAutoConfiguring = true
@@ -648,6 +710,9 @@ fun SettingsPanel(
 
             var useCfProxy by remember { mutableStateOf(config.useCfProxy) }
             var cfProxyDomain by remember { mutableStateOf(config.cfProxyDomain) }
+            var cfWorkerDomain by remember { mutableStateOf(config.cfWorkerDomain) }
+            var dnsServers by remember { mutableStateOf(config.dnsServers) }
+            var upstreamProxy by remember { mutableStateOf(config.upstreamProxy) }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -669,7 +734,30 @@ fun SettingsPanel(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                OutlinedTextField(
+                    value = cfWorkerDomain,
+                    onValueChange = { cfWorkerDomain = it },
+                    label = { Text("CF Worker домен (например: mwapp-is-super.workers.dev)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
             }
+
+            OutlinedTextField(
+                value = dnsServers,
+                onValueChange = { dnsServers = it },
+                label = { Text("DNS для CF-доменов (через запятую)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = upstreamProxy,
+                onValueChange = { upstreamProxy = it },
+                label = { Text("Upstream SOCKS5 (Hiddify: 127.0.0.1:2334)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
 
             OutlinedTextField(
                 value = secret,
@@ -718,6 +806,9 @@ fun SettingsPanel(
                     config.fakeTlsDomain = fakeTlsDomain
                     config.useCfProxy = useCfProxy
                     config.cfProxyDomain = cfProxyDomain
+                    config.cfWorkerDomain = cfWorkerDomain
+                    config.dnsServers = dnsServers
+                    config.upstreamProxy = upstreamProxy
                     onRestart()
                     onClose()
                 },

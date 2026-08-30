@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicLong
 class Stats {
     val connectionsTotal = AtomicLong(0)
     val connectionsWs = AtomicLong(0)
+    val connectionsCfProxy = AtomicLong(0)
     val connectionsTcpFallback = AtomicLong(0)
     val connectionsHttpRejected = AtomicLong(0)
     val connectionsPassthrough = AtomicLong(0)
@@ -19,6 +20,7 @@ class Stats {
         val ph = poolHits.get()
         val pm = poolMisses.get()
         return "total=${connectionsTotal.get()} ws=${connectionsWs.get()} " +
+                "cf=${connectionsCfProxy.get()} " +
                 "tcp_fb=${connectionsTcpFallback.get()} " +
                 "http_skip=${connectionsHttpRejected.get()} " +
                 "pass=${connectionsPassthrough.get()} " +
@@ -31,6 +33,7 @@ class Stats {
     fun reset() {
         connectionsTotal.set(0)
         connectionsWs.set(0)
+        connectionsCfProxy.set(0)
         connectionsTcpFallback.set(0)
         connectionsHttpRejected.set(0)
         connectionsPassthrough.set(0)

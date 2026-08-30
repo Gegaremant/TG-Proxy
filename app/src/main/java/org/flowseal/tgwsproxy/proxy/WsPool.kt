@@ -8,7 +8,12 @@ import java.util.concurrent.LinkedBlockingDeque
  * WebSocket connection pool, keeping idle connections per DC.
  * Port of the Python _WsPool class.
  */
-class WsPool(private val poolSize: Int = 4, private val maxAgeMs: Long = 25_000L) {
+class WsPool(
+    private val poolSize: Int = 4,
+    private val maxAgeMs: Long = 25_000L,
+    private val onLog: ((String) -> Unit)? = null,
+    private val socks5Proxy: String? = null
+) {
 
     private val TAG = "WsPool"
 
@@ -75,11 +80,13 @@ class WsPool(private val poolSize: Int = 4, private val maxAgeMs: Long = 25_000L
     private fun connectOne(targetIp: String, domains: List<String>): RawWebSocket? {
         for (domain in domains) {
             try {
-                return RawWebSocket.connect(targetIp, domain, timeoutMs = 8000)
+                return RawWebSocket.connect(targetIp, domain, timeoutMs = 8000, socks5Proxy = socks5Proxy)
             } catch (e: WsHandshakeError) {
+                onLog?.invoke("Pool connect $domain via $targetIp -> HTTP ${e.statusCode} ${e.statusLine}")
                 if (e.isRedirect) continue
                 return null
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                onLog?.invoke("Pool connect $domain via $targetIp failed: ${e.javaClass.simpleName}: ${e.message}")
                 return null
             }
         }

@@ -24,6 +24,8 @@ class ProxyServer(
     private val fakeTlsDomain: String,
     private val useCfProxy: Boolean = false,
     private val cfProxyDomain: String = "",
+    private val cfWorkerDomain: String = "",
+    private val upstreamProxy: String = "",
     private val dcOpt: Map<Int, String> = mapOf(2 to "149.154.167.220", 4 to "149.154.167.220"),
     private val poolSize: Int = 4,
     private val bufKb: Int = 256,
@@ -34,13 +36,13 @@ class ProxyServer(
     private val running = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
     private var executor: ExecutorService? = null
-    private val wsPool = WsPool(poolSize)
+    private val wsPool = WsPool(poolSize, onLog = { msg -> log(msg) }, socks5Proxy = upstreamProxy)
     val stats: Stats get() = wsPool.stats
 
     private val wsBlacklist = ConcurrentHashMap.newKeySet<Pair<Int, Boolean>>()
     private val dcFailUntil = ConcurrentHashMap<Pair<Int, Boolean>, Long>()
-    private val DC_FAIL_COOLDOWN = 30_000L
-    private val WS_FAIL_TIMEOUT = 2000
+    private val DC_FAIL_COOLDOWN = 60_000L
+    private val WS_FAIL_TIMEOUT = 5000
 
     private val bufSize = bufKb * 1024
     
@@ -48,8 +50,34 @@ class ProxyServer(
 
     init {
         val s = secret.trim().lowercase()
-        val hex = if (s.startsWith("dd") || s.startsWith("ee")) s.substring(2, 34) else s
-        secretBytes = decodeHex(hex)
+        val hex: String
+        if (s.startsWith("dd") || s.startsWith("ee")) {
+            hex = if (s.length >= 34) {
+                s.substring(2, 34)
+            } else {
+                log("Secret too short (${s.length}), generating new random secret")
+                generateRandomSecretHex()
+            }
+        } else {
+            hex = if (s.length >= 32) {
+                s
+            } else {
+                log("Secret too short (${s.length}), generating new random secret")
+                generateRandomSecretHex()
+            }
+        }
+        secretBytes = try {
+            decodeHex(hex)
+        } catch (e: Exception) {
+            log("Invalid secret hex, generating new random secret: ${e.message}")
+            decodeHex(generateRandomSecretHex())
+        }
+    }
+
+    private fun generateRandomSecretHex(): String {
+        val bytes = ByteArray(32)
+        java.security.SecureRandom().nextBytes(bytes)
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     private fun decodeHex(hex: String): ByteArray {
@@ -75,16 +103,37 @@ class ProxyServer(
 
         Thread({
             try {
-                serverSocket = ServerSocket().apply {
-                    reuseAddress = true
-                    bind(InetSocketAddress(host, port))
-                }
-                log("MTProto WS Bridge Proxy listening on $host:$port")
-                if (fakeTlsDomain.isNotEmpty()) {
-                    log("Fake TLS domain: $fakeTlsDomain")
+                var bindSuccess = false
+                var currentPort = port
+                while (!bindSuccess && running.get()) {
+                    try {
+                        serverSocket = ServerSocket().apply {
+                            reuseAddress = true
+                            bind(InetSocketAddress(host, currentPort))
+                        }
+                        bindSuccess = true
+                        val bound = serverSocket!!.localSocketAddress
+                        log("MTProto WS Bridge Proxy binding $host:$currentPort (bound=$bound, loopbackOnly=${InetAddress.getByName(host).isLoopbackAddress})")
+                        if (fakeTlsDomain.isNotEmpty()) {
+                            log("Fake TLS domain: $fakeTlsDomain")
+                        }
+                        wsPool.warmup(dcOpt)
+                    } catch (e: java.net.BindException) {
+                        log("Port $currentPort is in use, trying next port...")
+                        currentPort++
+                        if (currentPort > port + 10) {
+                            log("Failed to bind after 10 attempts, giving up")
+                            running.set(false)
+                            return@Thread
+                        }
+                    }
                 }
 
-                wsPool.warmup(dcOpt)
+                if (!bindSuccess) {
+                    log("Failed to bind to any port")
+                    running.set(false)
+                    return@Thread
+                }
 
                 while (running.get()) {
                     try {
@@ -103,6 +152,7 @@ class ProxyServer(
             } catch (e: Exception) {
                 Log.e(TAG, "Server start error: $e")
                 log("Failed to start: $e")
+                running.set(false)
             }
         }, "proxy-server").start()
     }
@@ -127,6 +177,7 @@ class ProxyServer(
     private fun handleClient(client: Socket) {
         stats.connectionsTotal.incrementAndGet()
         val label = "${client.inetAddress.hostAddress}:${client.port}"
+        Log.d(TAG, "[$label] Incoming connection (local=${client.localPort}, remote=${client.inetAddress.hostAddress})")
 
         try {
             val rawInput = client.getInputStream()
@@ -211,15 +262,11 @@ class ProxyServer(
             val relayInit = CryptoHelper.generateRelayInit(protoTag, dcIdx)
             val ctx = CryptoHelper.buildCryptoCtx(handshake.copyOfRange(8, 56), secretBytes, relayInit)
 
-            if (dc !in dcOpt) {
-                Log.w(TAG, "[$label] unknown DC$dc")
-                client.close()
-                return
-            }
-
             val dcKey = dc to isMedia
             val now = System.currentTimeMillis()
             val mediaTag = if (isMedia) " media" else ""
+            val target = dcOpt[dc]
+            val dcConfigured = target != null
 
             if (dcKey in wsBlacklist) {
                 Log.d(TAG, "[$label] DC$dc$mediaTag WS blacklisted")
@@ -231,16 +278,21 @@ class ProxyServer(
             val wsTimeout = if (now < failUntil) WS_FAIL_TIMEOUT else 10000
 
             val domains = TelegramDC.wsDomains(dc, isMedia)
-            val target = dcOpt[dc]!!
             var ws: RawWebSocket? = null
             var wsFailedRedirect = false
             var allRedirects = true
+
+            // Если для DC нет заданного IP (режим Cloudflare без конкретных DC),
+            // сразу ныряем в CF-fallback, как делает эталонный прокси.
+            if (!dcConfigured) {
+                Log.d(TAG, "[$label] DC$dc$mediaTag no configured IP -> CF fallback")
+            }
 
             if (useCfProxy && cfProxyDomain.isNotBlank()) {
                 val cfDomain = "kws$dc.$cfProxyDomain"
                 log("[$label] DC$dc$mediaTag -> CF Proxy wss://$cfDomain/apiws")
                 try {
-                    ws = RawWebSocket.connect(cfDomain, cfDomain, timeoutMs = wsTimeout)
+                    ws = RawWebSocket.connect(cfDomain, cfDomain, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
                     allRedirects = false
                 } catch (e: Exception) {
                     stats.wsErrors.incrementAndGet()
@@ -248,7 +300,47 @@ class ProxyServer(
                 }
             }
 
-            if (ws == null) {
+            if (ws == null && cfWorkerDomain.isNotBlank() && target != null) {
+                val workerPath = "/apiws?dst=$target&dc=$dc"
+                val workerHost = cfWorkerDomain.trim()
+                    .removePrefix("wss://").removePrefix("https://")
+                log("[$label] DC$dc$mediaTag -> CF Worker wss://$workerHost$workerPath")
+                try {
+                    ws = RawWebSocket.connect(workerHost, workerHost, path = workerPath, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                    allRedirects = false
+                    stats.connectionsCfProxy.incrementAndGet()
+                } catch (e: Exception) {
+                    stats.wsErrors.incrementAndGet()
+                    allRedirects = false
+                    log("[$label] DC$dc$mediaTag CF Worker failed: $e")
+                }
+            }
+
+            // CF-пул (wss://kws{dc}.{cfdomain}/apiws). В CF-режиме пробуем его
+            // раньше прямого WS к сырому IP — это обходит блокировку IP по TCP.
+            if (ws == null && useCfProxy) {
+                for (cfHost in TelegramDC.cfWsEndpoints(dc, isMedia)) {
+                    log("[$label] DC$dc$mediaTag -> CF wss://$cfHost/apiws")
+                    try {
+                        ws = RawWebSocket.connect(cfHost, cfHost, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                        allRedirects = false
+                        stats.connectionsCfProxy.incrementAndGet()
+                        break
+                    } catch (e: WsHandshakeError) {
+                        stats.wsErrors.incrementAndGet()
+                        if (!e.isRedirect) allRedirects = false
+                        log("[$label] DC$dc$mediaTag CF handshake failed: ${e.statusLine}")
+                    } catch (e: Exception) {
+                        stats.wsErrors.incrementAndGet()
+                        allRedirects = false
+                        log("[$label] DC$dc$mediaTag CF connect failed: $e")
+                    }
+                }
+            }
+
+            // Прямой WS к Telegram DC (kws{dc}.web.telegram.org) через заданный IP.
+            // Попробуем только если DC сконфигурирован.
+            if (ws == null && dcConfigured && target != null) {
                 ws = wsPool.get(dc, isMedia, target, domains)
                 if (ws != null) {
                     log("[$label] DC$dc$mediaTag -> pool hit via $target")
@@ -257,29 +349,43 @@ class ProxyServer(
                         val url = "wss://$domain/apiws"
                         log("[$label] DC$dc$mediaTag -> $url via $target")
                         try {
-                            ws = RawWebSocket.connect(target, domain, timeoutMs = wsTimeout)
+                            ws = RawWebSocket.connect(target, domain, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
                             allRedirects = false
                             break
                         } catch (e: WsHandshakeError) {
                             stats.wsErrors.incrementAndGet()
                             if (e.isRedirect) {
                                 wsFailedRedirect = true
-                                Log.w(TAG, "[$label] DC$dc$mediaTag got ${e.statusCode} from $domain -> ${e.location}")
+                                log("[$label] DC$dc$mediaTag got ${e.statusCode} from $domain -> ${e.location}")
                                 continue
                             } else {
                                 allRedirects = false
-                                Log.w(TAG, "[$label] DC$dc$mediaTag WS handshake: ${e.statusLine}")
+                                log("[$label] DC$dc$mediaTag WS handshake failed: ${e.statusLine}")
                             }
                         } catch (e: Exception) {
+                            // The configured target IP may be TCP-blocked (e.g.
+                            // 149.154.167.220). Retry resolving the WS domain
+                            // itself, which maps to a different, reachable IP.
                             stats.wsErrors.incrementAndGet()
                             allRedirects = false
-                            Log.w(TAG, "[$label] DC$dc$mediaTag WS connect failed: $e")
+                            log("[$label] DC$dc$mediaTag WS connect via $target failed: $e")
+                            try {
+                                log("[$label] DC$dc$mediaTag -> retry $url via domain-resolved IP")
+                                ws = RawWebSocket.connect(domain, domain, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                                if (ws != null) {
+                                    log("[$label] DC$dc$mediaTag -> direct WS ok via domain-resolved IP")
+                                    break
+                                }
+                            } catch (e2: Exception) {
+                                log("[$label] DC$dc$mediaTag WS connect via domain failed: $e2")
+                            }
                         }
                     }
                 }
             }
 
             if (ws == null) {
+                log("[$label] DC$dc$mediaTag all routes failed")
                 if (wsFailedRedirect && allRedirects) {
                     wsBlacklist.add(dcKey)
                     Log.w(TAG, "[$label] DC$dc$mediaTag blacklisted for WS (all 302)")
@@ -329,7 +435,11 @@ class ProxyServer(
                     if (n == -1) {
                         val flushed = splitter?.flush()
                         if (flushed != null && flushed.isNotEmpty()) {
-                            if (flushed.size > 1) ws.sendBatch(flushed) else ws.send(flushed[0])
+                            try {
+                                if (flushed.size > 1) ws.sendBatch(flushed) else ws.send(flushed[0])
+                            } catch (e: Exception) {
+                                log("[$label] Failed to send flush batch: $e")
+                            }
                         }
                         break
                     }
@@ -340,12 +450,17 @@ class ProxyServer(
                     val plain = ctx.cltDec.update(chunk)
                     val enc = ctx.tgEnc.update(plain)
 
-                    if (splitter != null) {
-                        val parts = splitter.split(enc)
-                        if (parts.isEmpty()) continue
-                        if (parts.size > 1) ws.sendBatch(parts) else ws.send(parts[0])
-                    } else {
-                        ws.send(enc)
+                    try {
+                        if (splitter != null) {
+                            val parts = splitter.split(enc)
+                            if (parts.isEmpty()) continue
+                            if (parts.size > 1) ws.sendBatch(parts) else ws.send(parts[0])
+                        } else {
+                            ws.send(enc)
+                        }
+                    } catch (e: Exception) {
+                        log("[$label] Failed to send data: $e")
+                        break
                     }
                 }
             } catch (_: Exception) {

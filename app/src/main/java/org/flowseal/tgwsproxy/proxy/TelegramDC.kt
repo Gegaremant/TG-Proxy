@@ -168,4 +168,17 @@ object TelegramDC {
             return data
         }
     }
+
+    /**
+     * Candidate WebSocket endpoints for a DC via the CF proxy domains.
+     * The pool is refreshed from GitHub (see [CfDomains]); the built-in
+     * list is used until a fresh one is fetched.
+     */
+    fun cfWsEndpoints(dc: Int, isMedia: Boolean): List<String> {
+        val resolvedDc = DC_OVERRIDES.getOrDefault(dc, dc)
+        // CF-proxy domains resolve to Cloudflare IPs via a single host regardless
+        // of media/non-media (the reference proxy uses "kws{dc}.{domain}" with no
+        // "-1" suffix for CF). The "kws{dc}-1.{domain}" names have no DNS record.
+        return CfDomains.domains.map { "kws${resolvedDc}.$it" }
+    }
 }
