@@ -1,0 +1,16 @@
+[Unit]
+Description=TG Proxy - Telegram MTProto WebSocket Proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/tg-proxy/TG-Proxy-Service --host 127.0.0.1 --port 1443
+WorkingDirectory=/opt/tg-proxy
+Restart=on-failure
+RestartSec=5
+# Укажите свой secret в следующей строке (32 hex-символа), либо удалите эту строку
+Environment=TG_WS_PROXY_SECRET=
+
+[Install]
+WantedBy=multi-user.target

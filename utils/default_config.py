@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import random
 import sys
 import os
 from typing import Any, Dict
@@ -31,9 +32,12 @@ _TRAY_DEFAULTS_COMMON: Dict[str, Any] = {
 def default_tray_config() -> Dict[str, Any]:
     cfg = dict(_TRAY_DEFAULTS_COMMON)
     cfg["secret"] = os.urandom(16).hex()
+    # Random port, generated ONCE and persisted in config.json — a stable
+    # configuration stays put, but each fresh install gets its own port.
+    cfg["port"] = random.randint(49152, 65535)
     cfg["language"] = detect_system_language().value
 
     if sys.platform == "win32":
-        cfg["autostart"] = False
+        cfg["autostart"] = True
 
     return cfg

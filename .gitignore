@@ -20,3 +20,6 @@ venv/
 .env
 
 trash/
+
+# Build artifacts
+TG-Proxy-*.apk

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=TG Proxy
+Comment=Telegram MTProto WebSocket Proxy
+Exec=/opt/tg-proxy/TG-Proxy
+Icon=tg-proxy
+Terminal=false
+X-GNOME-Autostart-enabled=true

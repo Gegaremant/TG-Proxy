@@ -2,6 +2,8 @@ import socket as _socket
 import urllib.request
 import http.client
 import ssl
+import logging
+import re
 
 import certifi
 
@@ -59,9 +61,9 @@ WS_PATH_TEST = WS_PATH + '_test'
 def ws_domains(dc: int, is_media) -> List[str]:
     if dc == 203:
         dc = 2
-    if is_media is None or is_media:
-        return [f'kws{dc}-1.web.telegram.org', f'kws{dc}.web.telegram.org']
-    return [f'kws{dc}.web.telegram.org', f'kws{dc}-1.web.telegram.org']
+    if not is_media:
+        return [f'kws{dc}.web.telegram.org', f'kws{dc}-1.web.telegram.org']
+    return [f'kws{dc}-1.web.telegram.org', f'kws{dc}.web.telegram.org']
 
 
 def human_bytes(n: int) -> str:
@@ -75,6 +77,32 @@ def human_bytes(n: int) -> str:
 def get_link_host(host: str) -> Optional[str]:
     # Показываем только стандартный localhost — реальный IP адрес не светим.
     return '127.0.0.1'
+
+
+class DomainCensorFilter(logging.Filter):
+    domain_pattern = re.compile(
+        r'(?<![\w-])(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+'
+        r'[a-zA-Z]{2,}(?![\w-])'
+    )
+
+    def _censor_match(self, match):
+        domain = match.group()
+        normalized = domain.casefold().rstrip('.')
+        if normalized == 'telegram.org' or normalized.endswith('.telegram.org') or normalized.endswith('.log'):
+            return domain
+        parts = domain.split('.')
+        if len(parts) < 2:
+            return domain
+        return '.'.join(
+            part if i == len(parts) - 1 else
+            part[:len(part) // 2] + '*' * (len(part) - len(part) // 2)
+            for i, part in enumerate(parts)
+        )
+
+    def filter(self, record):
+        record.msg = self.domain_pattern.sub(self._censor_match, record.getMessage())
+        record.args = ()
+        return True
 
 
 class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):

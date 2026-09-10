@@ -98,6 +98,9 @@
   "updates.status_latest": "Установлена последняя известная версия с GitHub.",
 
   "first_run.title": "Прокси запущен и работает в системном трее",
+  "first_run.checking": "Проверяем доступность Telegram API…",
+  "first_run.check_fail": "Не удалось проверить доступность Telegram API.\n\nПрокси запущен, но ссылку стоит получить позже — проверьте интернет-соединение и попробуйте ещё раз.",
+  "first_run.check_retry": "Повторить проверку",
   "first_run.how_to": "Как подключить Telegram Desktop:",
   "first_run.auto": "  Автоматически:",
   "first_run.auto_hint": "  ПКМ по иконке в трее → «Открыть в Telegram»",
@@ -128,6 +131,13 @@
   "dialog.pyperclip_missing": "Установите пакет pyperclip для копирования в буфер обмена.",
   "dialog.log_open_fail": "Не удалось открыть файл логов:\n{error}",
   "dialog.autostart_fail": "Не удалось изменить автозапуск.\n\nПопробуйте запустить приложение от имени пользователя с правами на реестр.\n\nОшибка: {error}",
+
+  "mode.service_running": "Прокси уже запущен как headless-сервис (PID {pid}).\n\nСервис занимает порт, поэтому GUI-версия не сможет запуститься параллельно.",
+  "mode.gui_running": "Прокси уже запущен в GUI-режиме (PID {pid}).",
+  "mode.switch_to_gui": "Остановить сервис и запустить GUI-версию вместо него?",
+  "mode.switch_to_service": "Закрыть GUI-версию и запустить прокси как сервис (headless)?",
+  "mode.stop_service_fail": "Не удалось остановить сервис.\n\nОстановите его вручную:\nsudo systemctl stop tg-proxy",
+  "mode.stop_gui_fail": "Не удалось закрыть GUI-версию. Закройте её вручную через иконку в трее (Выход).",
 
   "update.available": "Доступна новая версия: {version}",
   "update.ask_open": "Доступна новая версия: {version}\n\nОткрыть страницу релиза в браузере?",

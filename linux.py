@@ -302,7 +302,8 @@ def run_tray() -> None:
     _show_first_run()
     check_ipv6_warning(_show_info)
 
-    _tray_icon = pystray.Icon(APP_NAME, load_icon(), t("app.name"), menu=_build_menu())
+    _tray_icon = pystray.Icon(APP_NAME, load_icon(), APP_NAME, menu=_build_menu())
+    log.info("pystray backend: %s", type(_tray_icon).__module__)
     log.info("Tray icon running")
     _tray_icon.run()
 
@@ -311,10 +312,38 @@ def run_tray() -> None:
 
 
 def main() -> None:
+    import utils.runtime_mode as rt
+
+    # If another GUI instance is already running -> abort (single-instance lock).
     if not acquire_lock():
-        _show_info(t("dialog.already_running"), os.path.basename(sys.argv[0]))
+        modes = rt.running_modes()
+        extra = ""
+        if rt.GUI_MODE in modes:
+            pids = ", ".join(str(p) for p in modes[rt.GUI_MODE])
+            extra = "\n\n" + t("mode.gui_running", pid=pids)
+        _show_info(t("dialog.already_running") + extra, os.path.basename(sys.argv[0]))
         return
+
     try:
+        # The proxy may already run as the headless service. Inform the user
+        # and offer to switch to the GUI mode (or leave it running as-is).
+        modes = rt.running_modes()
+        if rt.SERVICE_MODE in modes:
+            service_pids = ", ".join(str(p) for p in modes[rt.SERVICE_MODE])
+            _show_info(
+                t("mode.service_running", pid=service_pids),
+                t("app.name"),
+            )
+            if _ask_yes_no(
+                t("mode.switch_to_gui"),
+                t("app.settings_title"),
+            ):
+                if not rt.stop_service():
+                    _show_error(t("mode.stop_service_fail"))
+                    return
+                # give the port a moment to free up
+                time.sleep(1.5)
+
         run_tray()
     finally:
         release_lock()

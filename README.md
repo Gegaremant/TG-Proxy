@@ -1,8 +1,13 @@
 # TG-Proxy (от Gegaremant labs)
 
-![TG-Proxy Logo](5.jpg)
+![TG-Proxy Logo](TG2.jpg)
 
 [English Version / Английская версия](README_en.md)
+
+### ⬇️ Скачать для своей ОС
+[![Windows](https://img.shields.io/badge/Windows-1.2.1-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.1-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.1-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.1-MAC.dmg)
+
+[![Linux](https://img.shields.io/badge/Linux-1.2.1-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.1-Linux) [![Android](https://img.shields.io/badge/Android-1.2.1-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.1-Android.apk)
 
 **TG-Proxy** — это единое кроссплатформенное приложение для обхода блокировок Telegram на основе MTProto WebSocket Proxy с поддержкой FakeTLS. Оно объединяет в себе версии для **Android**, **Windows**, **macOS** и **Linux** под одним капотом, предлагая единый стильный интерфейс и одинаковый набор функций на всех платформах.
 
@@ -20,7 +25,7 @@
 ## Структура репозитория
 * `app/`, `gradle/` — Исходный код Android-приложения (Kotlin/Jetpack Compose).
 * `proxy/`, `ui/`, `utils/`, `*.py` — Исходный код ПК-версии (Python/CustomTkinter для Windows, Linux, macOS).
-* `icon.png` / `5.jpg` — Графические ресурсы проекта.
+* `icon.png` / `TG2.jpg` — Графические ресурсы проекта.
 
 ## Сборка из исходников
 Для вашего удобства в проекте настроены GitHub Actions (`.github/workflows`), которые автоматически собирают APK-файл для Android и исполняемые файлы для настольных операционных систем при каждом push'е в ветку `main`.
@@ -34,6 +39,23 @@
 1. Откройте терминал в корневой папке проекта.
 2. Установите зависимости: `pip install -e .`
 3. Соберите исполняемый файл: `pyinstaller packaging/windows.spec` (или `macos.spec`, `linux.spec`).
+
+### Установка и запуск на Linux
+Подробная инструкция по сборке, установке, автозапуску и headless-сервису:
+см. [LINUX_INSTALL.md](LINUX_INSTALL.md).
+Кратко: соберите бинарники (`packaging/linux.spec` и `packaging/linux-service.spec`),
+затем выполните `sudo ./install.sh` — скрипт предложит автозапуск и systemd-сервис.
+
+### Установка и запуск на macOS
+Подробная инструкция: см. [MACOS_INSTALL.md](MACOS_INSTALL.md).
+Кратко: скачайте `.dmg` со страницы релизов, откройте его и перетащите
+приложение в папку «Программы». При первом запуске разрешите приложение в
+«Системные настройки → Конфиденциальность и безопасность», если macOS
+заблокирует его как неподписанное.
+
+При запуске прокси автоматически определяет, в каком режиме он уже работает
+(GUI-трей или headless-сервис), сообщает об этом и предлагает переключиться между
+режимами (см. `utils/runtime_mode.py`).
 
 ## Другие проекты Gegaremant labs
 * 🤖 **виртуальный ассистент KatYa**: [https://github.com/Gegaremant/KatYa_2](https://github.com/Gegaremant/KatYa_2)

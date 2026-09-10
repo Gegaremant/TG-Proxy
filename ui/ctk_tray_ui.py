@@ -1008,6 +1008,23 @@ def install_tray_config_buttons(
     attach_ctk_tooltip(cancel_btn, t("tip.cancel"))
 
 
+def check_tg_api_available(timeout: float = 5.0) -> bool:
+    """Check that Telegram WebSocket API endpoints are reachable (TLS handshake)."""
+    import socket as _socket
+    import ssl
+
+    for host in ("kws2.web.telegram.org", "149.154.167.220"):
+        try:
+            with _socket.create_connection((host, 443), timeout=timeout) as raw:
+                ctx = ssl.create_default_context()
+                with ctx.wrap_socket(raw, server_hostname=host) as ssock:
+                    ssock.settimeout(timeout)
+                    return True
+        except Exception:
+            continue
+    return False
+
+
 def populate_first_run_window(
     ctk: Any,
     root: Any,
@@ -1017,6 +1034,7 @@ def populate_first_run_window(
     port: int,
     secret: str,
     on_done: Callable[[bool], None],
+    check_available: bool = True,
 ) -> None:
     link_host = get_link_host(host)
     tg_url = f"tg://proxy?server={link_host}&port={port}&secret=dd{secret}"
@@ -1057,16 +1075,39 @@ def populate_first_run_window(
     )
     textbox._textbox.tag_configure("bold", font=(theme.ui_font_family, 13, "bold"))
     textbox._textbox.configure(spacing1=1, spacing3=1)
-    for text, bold in sections:
-        if text.startswith("\n"):
-            textbox.insert("end", "\n")
-            text = text[1:]
-        if bold:
-            textbox.insert("end", text + "\n", "bold")
-        else:
-            textbox.insert("end", text + "\n")
-    textbox.configure(state="disabled")
-    textbox.pack(anchor="w", fill="x")
+    textbox.pack(anchor="w", fill="x", expand=True)
+
+    def _fill(sections_: list) -> None:
+        textbox.configure(state="normal")
+        textbox.delete("1.0", "end")
+        for text, bold in sections_:
+            if text.startswith("\n"):
+                textbox.insert("end", "\n")
+                text = text[1:]
+            if bold:
+                textbox.insert("end", text + "\n", "bold")
+            else:
+                textbox.insert("end", text + "\n")
+        textbox.configure(state="disabled")
+
+    def _render_checking() -> None:
+        _fill([(t("first_run.checking"), False)])
+
+    def _render_links() -> None:
+        retry_btn.pack_forget()
+        _fill(sections)
+
+    def _render_fail() -> None:
+        _fill([(t("first_run.check_fail"), False)])
+        retry_btn.pack(side="left", padx=(0, 8))
+
+    def _start_check() -> None:
+        import threading
+        _render_checking()
+        def _worker() -> None:
+            ok = check_tg_api_available()
+            root.after(0, _render_links if ok else _render_fail)
+        threading.Thread(target=_worker, daemon=True, name="tg-api-check").start()
 
     ctk.CTkFrame(frame, fg_color="transparent", height=16).pack()
 
@@ -1080,10 +1121,25 @@ def populate_first_run_window(
     def on_ok():
         on_done(auto_var.get())
 
-    ctk.CTkButton(frame, text=t("button.start"), width=180, height=42,
-                  font=(theme.ui_font_family, 15, "bold"), corner_radius=10,
-                  fg_color=theme.tg_blue, hover_color=theme.tg_blue_hover,
-                  text_color="#ffffff",
-                  command=on_ok).pack(pady=(0, 0))
+    btn_row = ctk.CTkFrame(frame, fg_color="transparent")
+    btn_row.pack(fill="x")
+    retry_btn = ctk.CTkButton(
+        btn_row, text=t("first_run.check_retry"), width=160, height=42,
+        font=(theme.ui_font_family, 13), corner_radius=10,
+        fg_color=theme.field_bg, hover_color=theme.field_border,
+        text_color=theme.text_primary, border_width=1,
+        border_color=theme.field_border,
+        command=_start_check)
+    start_btn = ctk.CTkButton(
+        btn_row, text=t("button.start"), width=180, height=42,
+        font=(theme.ui_font_family, 15, "bold"), corner_radius=10,
+        fg_color=theme.tg_blue, hover_color=theme.tg_blue_hover,
+        text_color="#ffffff",
+        command=on_ok)
+    start_btn.pack(side="left")
+    if check_available:
+        _start_check()
+    else:
+        _render_links()
 
     root.protocol("WM_DELETE_WINDOW", on_ok)

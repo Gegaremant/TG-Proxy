@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <!-- T letter centered -->
-    <path android:fillColor="#FFFFFF" android:pathData="M36,36 L72,36 L72,42 L57,42 L57,72 L51,72 L51,42 L36,42 Z" />
+    <!-- К letter -->
+    <path android:fillColor="#FFFFFF" android:pathData="M34,36 L42,36 L42,72 L34,72 Z
+        M42,48 L52,38 L57,43 L47,53 Z
+        M42,60 L52,70 L57,65 L47,55 Z" />
+    <!-- T letter -->
+    <path android:fillColor="#FFFFFF" android:pathData="M58,36 L73,36 L73,42 L58,42 Z
+        M63,42 L69,42 L69,72 L63,72 Z" />
 </vector>

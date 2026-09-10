@@ -28,7 +28,7 @@ def render_app_icon(size: int):
         )
     except OSError:
         font = ImageFont.load_default()
-    box = draw.textbbox((0, 0), "T", font=font)
+    box = draw.textbbox((0, 0), "КТ", font=font)
     width = box[2] - box[0]
     height = box[3] - box[1]
     draw.text(
@@ -36,7 +36,7 @@ def render_app_icon(size: int):
             (size - width) / 2 - box[0],
             (size - height) / 2 - box[1] - round(10 * scale),
         ),
-        "T",
+        "КТ",
         font=font,
         fill=(255, 255, 255, 255),
     )

@@ -621,6 +621,11 @@ def run_tray() -> None:
 
     _config = load_config()
 
+    # Apply autostart at startup: the default is "enabled" (mirrored in
+    # utils/default_config.py), so a fresh install starts with Windows.
+    if _supports_autostart() and _config.get("autostart", False) and not is_autostart_enabled():
+        set_autostart_enabled(True)
+
     if is_windows_dark_theme():
         apply_windows_dark_theme()
 

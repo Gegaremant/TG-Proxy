@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <!-- Monochrome T icon for notification -->
-    <path android:fillColor="#FFFFFF" android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM8,8 L16,8 L16,10 L13,10 L13,16 L11,16 L11,10 L8,10 Z" />
+    <!-- Monochrome KT icon for notification -->
+    <path android:fillColor="#FFFFFF" android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z
+        M7,8 L9,8 L9,16 L7,16 Z
+        M9,10 L12,8.5 L13.5,10 L10.5,11.5 Z
+        M9,13 L10.5,11.5 L13.5,14.5 L12,16 Z
+        M13,8 L17,8 L17,10 L13,10 Z
+        M14.5,10 L15.5,10 L15.5,16 L14.5,16 Z" />
 </vector>

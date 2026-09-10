@@ -25,13 +25,44 @@ typelib_datas = []
 for d in typelib_dirs:
     typelib_datas.append((d, 'gi_typelibs'))
 
+# --- Tcl/Tk runtime libraries + scripts required by the bundled _tkinter ---
+# _tkinter links against libtcl9.0.so / libtcl9tk9.0.so and loads init scripts
+# (init.tcl, tk.tcl, ...) from the Tcl/Tk version directories at runtime.
+_tcl_libs = []
+_tcl_datas = []
+try:
+    import _tkinter as _tkl
+    # _tkinter lives at <prefix>/lib/pythonX.Y/lib-dynload/_tkinter.*.so
+    _tcl_base = os.path.join(
+        os.path.dirname(_tkl.__file__), os.pardir, os.pardir, os.pardir
+    )
+except Exception:
+    _tkl = None
+    _tcl_base = os.path.join(os.path.dirname(sys.executable), os.pardir, 'lib')
+
+_tcl_base = os.path.normpath(_tcl_base)
+_tcl_libdir = os.path.join(_tcl_base, 'lib')
+
+for _lib in ['libtcl9.0.so', 'libtcl9tk9.0.so']:
+    _p = os.path.join(_tcl_libdir, _lib)
+    if os.path.exists(_p):
+        _tcl_libs.append((_p, '.'))
+
+for _tdir in ['tcl9.0', 'tk9.0', 'tcl9']:
+    _d = os.path.join(_tcl_libdir, _tdir)
+    if os.path.isdir(_d):
+        _tcl_datas.append((_d, _tdir))
+
 a = Analysis(
     [os.path.join(os.path.dirname(SPEC), os.pardir, 'linux.py')],
     pathex=[],
-    binaries=[],
-    datas=[(ctk_path, 'customtkinter/'), (_i18n_path, 'ui/i18n')] + certifi_datas + gi_datas + typelib_datas,
+    binaries=_tcl_libs,
+    datas=[(ctk_path, 'customtkinter/'), (_i18n_path, 'ui/i18n')] + certifi_datas + gi_datas + typelib_datas + _tcl_datas,
     hiddenimports=[
         'pystray._appindicator',
+        'pystray._xorg',
+        'Xlib',
+        'Xlib.display',
         'PIL._tkinter_finder',
         'customtkinter',
         'cryptography.hazmat.primitives.ciphers',
@@ -81,7 +112,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='TG-Proxy-1.0.5-Linux',
+    name='TG-Proxy-1.2.1-Linux',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,

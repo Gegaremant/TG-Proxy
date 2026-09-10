@@ -16,6 +16,7 @@ import psutil
 
 from proxy import __version__, get_link_host, parse_dc_ip_list, proxy_config, coerce_domain_list
 from proxy.tg_ws_proxy import _run
+from proxy.utils import DomainCensorFilter
 from utils.default_config import default_tray_config
 from utils.diagnostics import diagnose_listen_error
 from utils.logging_setup import build_log_handler
@@ -237,12 +238,14 @@ def setup_logging(verbose: bool = False, log_max_mb: float = 5) -> None:
     fh = build_log_handler(str(LOG_FILE), log_max_mb=log_max_mb, backups=1)
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(logging.Formatter(_LOG_FMT_FILE, datefmt="%Y-%m-%d %H:%M:%S"))
+    fh.addFilter(DomainCensorFilter())
     root.addHandler(fh)
 
     if not IS_FROZEN:
         ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(level)
         ch.setFormatter(logging.Formatter(_LOG_FMT_CONSOLE, datefmt="%H:%M:%S"))
+        ch.addFilter(DomainCensorFilter())
         root.addHandler(ch)
 
 
@@ -265,11 +268,12 @@ def make_icon_image(size: int = 64, *, color: Tuple[int, ...] = (0, 136, 204, 25
     else:
         font = ImageFont.load_default()
 
-    bbox = draw.textbbox((0, 0), "T", font=font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    label = "КТ"
+    bb = draw.textbbox((0, 0), label, font=font)
+    tw, th = bb[2] - bb[0], bb[3] - bb[1]
     draw.text(
-        ((size - tw) // 2 - bbox[0], (size - th) // 2 - bbox[1]),
-        "T",
+        ((size - tw) // 2 - bb[0], (size - th) // 2 - bb[1]),
+        label,
         fill=(255, 255, 255, 255),
         font=font,
     )

@@ -304,6 +304,8 @@ async def _handle_client(reader, writer, secret: bytes):
         is_any_cf_fallback = proxy_config.fallback_cfproxy or proxy_config.cfproxy_worker_domains
 
         # Fallback if DC not in config, if WS blacklisted for this DC/is_media or if connect to ip is timed out
+        domains = ws_domains(dc, is_media)
+        ws = None
         if (dc not in proxy_config.dc_redirects
             or dc_key in ws_blacklist
             or now < ip_fail_until.get(target, 0) and is_any_cf_fallback):
@@ -315,34 +317,41 @@ async def _handle_client(reader, writer, secret: bytes):
                 log.info("[%s] DC%d%s WS blacklisted -> fallback",
                          label, dc, media_tag)
             else:
-                log.info("[%s] DC%d%s WS connect to %s was timed out -> fallback",
-                         label, dc, media_tag, target)
-            splitter = None
-            try:
-                splitter = MsgSplitter(relay_init, proto_int)
-            except Exception:
-                pass
-            ok = await do_fallback(
-                clt_reader, clt_writer, relay_init, label,
-                dc, is_test_dc, is_media, media_tag,
-                ctx, splitter=splitter)
-            if not ok:
-                log.warning("[%s] DC%d%s no fallback available",
-                            label, dc, media_tag)
-            return
+                # Try to get WS from pool first, might be accidental timeout
+                ws = await ws_pool.get(
+                    dc, is_media, target, domains
+                ) if not is_test_dc else None
+
+                if not ws:
+                    log.info("[%s] DC%d%s WS connect to %s was timed out -> fallback",
+                             label, dc, media_tag, target)
+                else:
+                    log.info("[%s] DC%d%s WS connect to %s was timed out, but pool hit -> using WS",
+                             label, dc, media_tag, target)
+
+            if not ws:
+                splitter = None
+                try:
+                    splitter = MsgSplitter(relay_init, proto_int)
+                except Exception:
+                    pass
+                ok = await do_fallback(
+                    clt_reader, clt_writer, relay_init, label,
+                    dc, is_test_dc, is_media, media_tag,
+                    ctx, splitter=splitter)
+                if not ok:
+                    log.warning("[%s] DC%d%s no fallback available",
+                                label, dc, media_tag)
+                return
 
         ws_timeout = WS_FAIL_TIMEOUT if now < dc_fail_until.get(dc_key, 0) else 5.0
 
-        domains = ws_domains(dc, is_media)
-        ws = None
         ws_failed_redirect = False
         ws_timed_out = False
         all_redirects = True
 
-        allow_pool_refill = now >= ip_fail_until.get(target, 0)
-        ws = await ws_pool.get(
-            dc, is_media, target, domains,
-            allow_refill=allow_pool_refill,
+        ws = ws or await ws_pool.get(
+            dc, is_media, target, domains
         ) if not is_test_dc else None
         if ws:
             log.info("[%s] DC%d%s -> pool hit via %s",
@@ -724,6 +733,7 @@ def main():
 
     console = logging.StreamHandler()
     console.setFormatter(log_fmt)
+    console.addFilter(DomainCensorFilter())
     root.addHandler(console)
 
     if args.log_file:
@@ -734,9 +744,21 @@ def main():
             backups=args.log_backups,
         )
         fh.setFormatter(log_fmt)
+        fh.addFilter(DomainCensorFilter())
         root.addHandler(fh)
 
     logging.getLogger('asyncio').setLevel(logging.WARNING)
+
+    # Warn if the proxy is already running as the desktop GUI (port conflict).
+    try:
+        from utils.runtime_mode import running_modes, GUI_MODE
+        gui_pids = running_modes().get(GUI_MODE, [])
+        if gui_pids:
+            log.warning("TG Proxy already runs in GUI mode (PIDs: %s). "
+                        "It occupies the port; the service may fail to bind.",
+                        ", ".join(str(p) for p in gui_pids))
+    except Exception as exc:
+        log.debug("Runtime-mode check skipped: %s", exc)
 
     try:
         asyncio.run(_run())

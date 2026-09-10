@@ -98,6 +98,9 @@
   "updates.status_latest": "Latest known version from GitHub is installed.",
 
   "first_run.title": "Proxy is running in the system tray",
+  "first_run.checking": "Checking Telegram API availability…",
+  "first_run.check_fail": "Could not verify Telegram API availability.\n\nThe proxy is running, but grab the link later — check your internet connection and try again.",
+  "first_run.check_retry": "Retry check",
   "first_run.how_to": "How to connect Telegram Desktop:",
   "first_run.auto": "  Automatically:",
   "first_run.auto_hint": "  Right-click tray icon → «Open in Telegram»",
@@ -128,6 +131,13 @@
   "dialog.pyperclip_missing": "Install pyperclip to copy to clipboard.",
   "dialog.log_open_fail": "Failed to open log file:\n{error}",
   "dialog.autostart_fail": "Failed to change autostart.\n\nTry running the app as a user with registry permissions.\n\nError: {error}",
+
+  "mode.service_running": "The proxy is already running as a headless service (PID {pid}).\n\nThe service occupies the port, so the GUI version cannot run in parallel.",
+  "mode.gui_running": "The proxy is already running in GUI mode (PID {pid}).",
+  "mode.switch_to_gui": "Stop the service and run the GUI version instead?",
+  "mode.switch_to_service": "Close the GUI version and run the proxy as a (headless) service?",
+  "mode.stop_service_fail": "Could not stop the service.\n\nStop it manually:\nsudo systemctl stop tg-proxy",
+  "mode.stop_gui_fail": "Could not close the GUI version. Close it manually from the tray icon (Exit).",
 
   "update.available": "New version available: {version}",
   "update.ask_open": "New version available: {version}\n\nOpen the release page in the browser?",
