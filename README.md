@@ -41,10 +41,11 @@
 3. Соберите исполняемый файл: `pyinstaller packaging/windows.spec` (или `macos.spec`, `linux.spec`).
 
 ### Установка и запуск на Linux
-Подробная инструкция по сборке, установке, автозапуску и headless-сервису:
-см. [LINUX_INSTALL.md](LINUX_INSTALL.md).
-Кратко: соберите бинарники (`packaging/linux.spec` и `packaging/linux-service.spec`),
-затем выполните `sudo ./install.sh` — скрипт предложит автозапуск и systemd-сервис.
+Подробная инструкция: см. [LINUX_INSTALL.md](LINUX_INSTALL.md).
+Быстро: скачайте `install.sh` со страницы релизов и запустите `./install.sh` —
+установщик сам скачает последнюю версию, поставит иконку и пункт меню,
+предложит автозапуск, а с `sudo ./install.sh --service` добавит headless-сервис
+через systemd.
 
 ### Установка и запуск на macOS
 Подробная инструкция: см. [MACOS_INSTALL.md](MACOS_INSTALL.md).
