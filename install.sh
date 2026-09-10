@@ -22,14 +22,17 @@
 #   ./install.sh run    ./TG-Proxy-1.2.1-Linux   # запустить уже скачанный файл
 #   ./install.sh uninstall          # удалить установленную копию
 #   ./install.sh --service          # дополнительно установить headless systemd-сервис
+#   ./install.sh --tg               # дополнительно установить/обновить Telegram Desktop
 #
 set -euo pipefail
 
 APP_NAME="TG-Proxy"
 BIN_NAME="tg-proxy"
 REPO="Gegaremant/TG-Proxy"
+TD_REPO="telegramdesktop/tdesktop"
 DOWNLOAD_DIR="$HOME/.cache/tg-proxy"
 VERSION=""
+WITH_TG=0
 
 log()  { printf '\033[1;32m[install]\033[0m %s\n' "$*"; }
 step() { printf '\n\033[1;36m== %s ==\033[0m\n' "$*"; }
@@ -40,11 +43,13 @@ die()  { printf '\033[1;31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
 MODE="install"
 LOCAL_BIN=""
 WITH_SERVICE=0
+WITH_TG=0
 
 for arg in "$@"; do
   case "$arg" in
     install|run|uninstall) MODE="$arg" ;;
     --service) WITH_SERVICE=1 ;;
+    --tg|--telegram) WITH_TG=1 ;;
     *) LOCAL_BIN="$arg" ;;
   esac
 done
@@ -220,6 +225,17 @@ EOF
     install_service
   fi
 
+  # Telegram Desktop (по запросу или по интерактивному вопросу)
+  if [[ "$WITH_TG" -eq 1 ]]; then
+    install_tgdesktop
+  elif [[ -t 0 ]]; then
+    printf '\033[1;36mУстановить/обновить Telegram Desktop? [y/N]: \033[0m'
+    read -r answer
+    case "$answer" in
+      y|Y|yes|Yes|да|Да) install_tgdesktop ;;
+    esac
+  fi
+
   step "Готово"
   if [[ "$SYSTEM_MODE" -eq 0 && ":$PATH:" != *":$BIN_DIR:"* ]]; then
     warn "$BIN_DIR нет в PATH."
@@ -284,6 +300,83 @@ EOF
   esac
 }
 
+# ---------- Telegram Desktop: установка / обновление ----------
+install_tgdesktop() {
+  step "Telegram Desktop (установка/обновление)"
+  local tg_tag tg_ver asset url dest tmp icon_url
+
+  tg_tag=$(curl -fsS -o /dev/null -w '%{redirect_url}' \
+    "https://github.com/$TD_REPO/releases/latest" 2>/dev/null \
+    | sed -n 's#.*/releases/tag/\(v[^/]*\).*#\1#p')
+  [[ -n "$tg_tag" ]] || die "Не удалось определить последний релиз tdesktop."
+  tg_ver="${tg_tag#v}"
+  log "Telegram Desktop: последняя версия v$tg_ver"
+
+  asset=$(curl -fsSL \
+    "https://github.com/$TD_REPO/releases/expanded_assets/$tg_tag" 2>/dev/null \
+    | grep -oE 'td-setup-linux-x64-[0-9.]+\.tar\.xz' | head -1)
+  [[ -n "$asset" ]] || die "Не найден Linux-пакет tdesktop в релизе $tg_tag."
+
+  # Скачивание (с кэшем)
+  mkdir -p "$DOWNLOAD_DIR/tgdesktop"
+  dest="$DOWNLOAD_DIR/tgdesktop/$asset"
+  if [[ ! -f "$dest" || ! -s "$dest" ]]; then
+    log "Скачиваю $asset ..."
+    curl -fL --progress-bar -o "$dest" \
+      "https://github.com/$TD_REPO/releases/download/$tg_tag/$asset" \
+      || { rm -f "$dest"; die "Ошибка скачивания: $asset"; }
+  fi
+
+  # Распаковка
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' RETURN
+  tar -xJf "$dest" -C "$tmp"
+  [[ -x "$tmp/Telegram/Telegram" ]] \
+    || die "В пакете tdesktop не найден бинарник Telegram/Telegram."
+
+  # Установка
+  local tg_root="${INSTALL_DIR%/tg-proxy}/tgdesktop"
+  mkdir -p "$tg_root"
+  rm -rf "$tg_root/Telegram"
+  cp -a "$tmp/Telegram" "$tg_root/Telegram"
+  rm -rf "$tmp"
+  trap - RETURN
+  log "Установлен Telegram Desktop v$tg_ver в $tg_root"
+
+  # Иконка (из репозитория tdesktop, по возможности)
+  icon_url=""
+  curl -fsSL -o "$ICON_DIR/telegram.png" --max-time 30 \
+    "https://raw.githubusercontent.com/$TD_REPO/master/Telegram/Resources/art/icon256.png" \
+    >/dev/null 2>&1 && icon_url="$ICON_DIR/telegram.png" || \
+    warn "Иконку Telegram не удалось скачать (ярлык без иконки)."
+
+  # Ярлык в меню
+  cat >"$DESKTOP_DIR/telegramdesktop.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Telegram Desktop
+Comment=Official desktop version of Telegram messaging app
+Exec="$tg_root/Telegram/Telegram" %U
+Icon=${icon_url:-telegram}
+Terminal=false
+Categories=Network;InstantMessaging;
+StartupWMClass=TelegramDesktop
+EOF
+  chmod 644 "$DESKTOP_DIR/telegramdesktop.desktop"
+  command -v update-desktop-database >/dev/null 2>&1 \
+    && update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
+  log "Ярлык в меню: telegramdesktop.desktop"
+
+  # Команда telegram-desktop
+  cat >"$BIN_DIR/telegram-desktop" <<EOF
+#!/bin/bash
+exec "$tg_root/Telegram/Telegram" "\$@"
+EOF
+  chmod +x "$BIN_DIR/telegram-desktop"
+  log "Команда: telegram-desktop"
+  echo "  Telegram Desktop v$tg_ver установлен. Запуск: telegram-desktop"
+}
+
 # ---------- Запуск без установки ----------
 do_run() {
   download_bin
@@ -296,10 +389,14 @@ do_run() {
 # ---------- Удаление ----------
 do_uninstall() {
   rm -f "$DESKTOP_DIR/tg-proxy.desktop"
+  rm -f "$DESKTOP_DIR/telegramdesktop.desktop"
   rm -f "$ICON_DIR/tg-proxy.png"
+  rm -f "$ICON_DIR/telegram.png"
   rm -f "$BIN_DIR/$BIN_NAME"
+  rm -f "$BIN_DIR/telegram-desktop"
   rm -f "$AUTOSTART_DIR/tg-proxy.desktop"
   rm -rf "$INSTALL_DIR"
+  rm -rf "${INSTALL_DIR%/tg-proxy}/tgdesktop"
   if [[ "$SYSTEM_MODE" -eq 1 ]]; then
     systemctl stop tg-proxy >/dev/null 2>&1 || true
     systemctl disable tg-proxy >/dev/null 2>&1 || true

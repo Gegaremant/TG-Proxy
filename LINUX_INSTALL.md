@@ -20,7 +20,9 @@ sudo ./install.sh       # установит системно в /opt/tg-proxy
 - устанавливает бинарник, иконку и пункт меню **TG Proxy**;
 - создаёт команду запуска из терминала: `tg-proxy`;
 - **спрашивает**, включить ли автозапуск при входе в систему;
-- с `--service` дополнительно ставит headless-прокси как systemd-сервис.
+- с `--service` дополнительно ставит headless-прокси как systemd-сервис;
+- с `--tg` дополнительно скачивает и **устанавливает/обновляет официальный
+  Telegram Desktop** (tdesktop) с GitHub.
 
 Другие режимы:
 
@@ -29,6 +31,7 @@ sudo ./install.sh       # установит системно в /opt/tg-proxy
 ./install.sh install ./TG-Proxy-1.2.1-Linux       # установить уже скачанный файл
 ./install.sh uninstall                            # удалить установленную копию
 sudo ./install.sh --service                       # + headless systemd-сервис (нужен root)
+./install.sh --tg                                 # + установить/обновить Telegram Desktop
 ```
 
 ## 2. Ручная сборка (необязательно)

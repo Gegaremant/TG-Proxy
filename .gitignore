@@ -23,3 +23,6 @@ trash/
 
 # Build artifacts
 TG-Proxy-*.apk
+
+# Local copies of third-party binaries (Telegram Desktop etc.)
+releases/
