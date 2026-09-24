@@ -60,22 +60,24 @@ class RawWebSocket private constructor(
             domain: String,
             path: String = "/apiws",
             timeoutMs: Int = 10000,
-            socks5Proxy: String? = null
+            socks5Proxy: String? = null,
+            secure: Boolean = true
         ): RawWebSocket {
             val connectHost = if (isIpLiteral(ip)) ip else domain
             val rawSocket: Socket
+            val port = if (secure) 443 else 80
 
             if (socks5Proxy != null && socks5Proxy.isNotBlank()) {
                 val (proxyHost, proxyPort) = Socks5.parseHostPort(socks5Proxy)
                     ?: throw java.io.IOException("Invalid SOCKS5 proxy: $socks5Proxy")
-                rawSocket = Socks5.connect(proxyHost, proxyPort, connectHost, 443, timeoutMs)
+                rawSocket = Socks5.connect(proxyHost, proxyPort, connectHost, port, timeoutMs)
                     ?: throw java.io.IOException(
-                        "SOCKS5 connect to $connectHost:443 via $socks5Proxy failed"
+                        "SOCKS5 connect to $connectHost:$port via $socks5Proxy failed"
                     )
             } else {
                 val connectIp = resolveConnectAddress(connectHost, timeoutMs)
                 rawSocket = Socket()
-                rawSocket.connect(InetSocketAddress(connectIp, 443), timeoutMs)
+                rawSocket.connect(InetSocketAddress(connectIp, port), timeoutMs)
             }
 
             rawSocket.soTimeout = timeoutMs
@@ -84,13 +86,18 @@ class RawWebSocket private constructor(
             rawSocket.setSendBufferSize(1024 * 1024)
             rawSocket.setReceiveBufferSize(1024 * 1024)
 
-            val sslSocket = sslContext.socketFactory.createSocket(
-                rawSocket, domain, 443, true
-            ) as SSLSocket
-            sslSocket.startHandshake()
+            val activeSocket = if (secure) {
+                val sslSocket = sslContext.socketFactory.createSocket(
+                    rawSocket, domain, port, true
+                ) as SSLSocket
+                sslSocket.startHandshake()
+                sslSocket
+            } else {
+                rawSocket
+            }
 
-            val output = sslSocket.getOutputStream()
-            val input = sslSocket.getInputStream()
+            val output = activeSocket.getOutputStream()
+            val input = activeSocket.getInputStream()
 
             // WebSocket upgrade request
             val wsKeyBytes = ByteArray(16)

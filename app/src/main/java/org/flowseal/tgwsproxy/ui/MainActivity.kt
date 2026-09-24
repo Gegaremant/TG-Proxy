@@ -711,6 +711,7 @@ fun SettingsPanel(
             var useCfProxy by remember { mutableStateOf(config.useCfProxy) }
             var cfProxyDomain by remember { mutableStateOf(config.cfProxyDomain) }
             var cfWorkerDomain by remember { mutableStateOf(config.cfWorkerDomain) }
+            var disableSecure by remember { mutableStateOf(config.disableSecure) }
             var dnsServers by remember { mutableStateOf(config.dnsServers) }
             var upstreamProxy by remember { mutableStateOf(config.upstreamProxy) }
 
@@ -741,6 +742,16 @@ fun SettingsPanel(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { disableSecure = !disableSecure },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Выключить TLS (80 порт)", modifier = Modifier.weight(1f))
+                    Checkbox(
+                        checked = disableSecure,
+                        onCheckedChange = { disableSecure = it }
+                    )
+                }
             }
 
             OutlinedTextField(
@@ -807,6 +818,7 @@ fun SettingsPanel(
                     config.useCfProxy = useCfProxy
                     config.cfProxyDomain = cfProxyDomain
                     config.cfWorkerDomain = cfWorkerDomain
+                    config.disableSecure = disableSecure
                     config.dnsServers = dnsServers
                     config.upstreamProxy = upstreamProxy
                     onRestart()
