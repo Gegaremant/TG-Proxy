@@ -22,9 +22,8 @@ _st_H = struct.Struct('>H')
 _st_Q = struct.Struct('>Q')
 
 _ssl_ctx = ssl.create_default_context()
-_ssl_ctx.check_hostname = False
-_ssl_ctx.verify_mode = ssl.CERT_NONE
-
+_ssl_ctx_fronting = ssl.create_default_context()
+_ssl_ctx_fronting.check_hostname = False
 
 class WsHandshakeError(Exception):
     def __init__(self, status_code: int, status_line: str,
@@ -87,14 +86,25 @@ class RawWebSocket:
     @staticmethod
     async def connect(host: str, domain: str, timeout: float = 10.0,
                       path: str = '/apiws', *,
-                      sni: Optional[str] = None) -> 'RawWebSocket':
+                      sni: Optional[str] = None, secure = True) -> 'RawWebSocket':
+        ssl = _ssl_ctx_fronting if sni else _ssl_ctx
+        print(f"Connecting to {host} with secure={secure}, sni={sni}, path={path}")
+
         if sni is None:
             sni = domain
 
         reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, 443, ssl=_ssl_ctx,
-                                    server_hostname=sni),
-            timeout=min(timeout, 10))
+            (
+                asyncio.open_connection(
+                    host, 443,
+                    ssl=ssl,
+                    server_hostname=sni,
+                )
+                if secure
+                else asyncio.open_connection(host, 80)
+            ),
+            timeout=min(timeout, 10),
+        )
         
         set_sock_opts(writer.transport, proxy_config.buffer_size)
 

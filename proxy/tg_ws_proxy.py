@@ -533,6 +533,8 @@ async def _run(stop_event: Optional[asyncio.Event] = None):
     if proxy_config.cfproxy_worker_domains:
         log.info("  CF worker:     enabled (%s)",
                  ", ".join(proxy_config.cfproxy_worker_domains))
+    if proxy_config.disable_secure:
+        log.info("  No secure:     enabled (port 80 for CF proxy/worker)")
     log.info("=" * 60)
     log.info("  Connect:")
     if ftls:
@@ -675,6 +677,8 @@ def main():
                          'repeatable for multiple domains)')
     ap.add_argument('--no-cfproxy', action='store_true',
                     help='Disable Cloudflare proxy fallback')
+    ap.add_argument('--no-secure', action='store_true',
+                        help='Use 80 port for CF-proxy and CF-worker connections')
     ap.add_argument('--fake-tls-domain', type=str, default='',
                     metavar='DOMAIN',
                     help='Enable Fake TLS (ee-secret) masking with the given '
@@ -721,6 +725,7 @@ def main():
     proxy_config.fallback_cfproxy = not args.no_cfproxy
     proxy_config.cfproxy_user_domains = coerce_domain_list(args.cfproxy_domain)
     proxy_config.cfproxy_worker_domains = coerce_domain_list(args.cfproxy_worker_domain)
+    proxy_config.disable_secure = args.no_secure
     proxy_config.fake_tls_domain = args.fake_tls_domain.strip()
     proxy_config.proxy_protocol = args.proxy_protocol
     proxy_config.force_test_dc = args.force_test_dc
