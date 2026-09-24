@@ -122,7 +122,6 @@ class ProxyService : Service() {
             useCfProxy = config.useCfProxy,
             cfProxyDomain = config.cfProxyDomain,
             cfWorkerDomain = config.cfWorkerDomain,
-            disableSecure = config.disableSecure,
             upstreamProxy = config.upstreamProxy,
             dcOpt = dcOpt,
             poolSize = config.poolSize,

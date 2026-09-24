@@ -18,6 +18,7 @@ venv/
 .DS_Store
 *.log
 .env
+CLAUDE.md
 
 trash/
 

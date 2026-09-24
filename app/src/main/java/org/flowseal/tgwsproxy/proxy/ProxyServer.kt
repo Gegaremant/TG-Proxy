@@ -25,7 +25,6 @@ class ProxyServer(
     private val useCfProxy: Boolean = false,
     private val cfProxyDomain: String = "",
     private val cfWorkerDomain: String = "",
-    private val disableSecure: Boolean = false,
     private val upstreamProxy: String = "",
     private val dcOpt: Map<Int, String> = mapOf(2 to "149.154.167.220", 4 to "149.154.167.220"),
     private val poolSize: Int = 4,
@@ -293,7 +292,7 @@ class ProxyServer(
                 val cfDomain = "kws$dc.$cfProxyDomain"
                 log("[$label] DC$dc$mediaTag -> CF Proxy wss://$cfDomain/apiws")
                 try {
-                    ws = RawWebSocket.connect(cfDomain, cfDomain, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy, secure = !disableSecure)
+                    ws = RawWebSocket.connect(cfDomain, cfDomain, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
                     allRedirects = false
                 } catch (e: Exception) {
                     stats.wsErrors.incrementAndGet()
@@ -307,7 +306,7 @@ class ProxyServer(
                     .removePrefix("wss://").removePrefix("https://")
                 log("[$label] DC$dc$mediaTag -> CF Worker wss://$workerHost$workerPath")
                 try {
-                    ws = RawWebSocket.connect(workerHost, workerHost, path = workerPath, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy, secure = !disableSecure)
+                    ws = RawWebSocket.connect(workerHost, workerHost, path = workerPath, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
                     allRedirects = false
                     stats.connectionsCfProxy.incrementAndGet()
                 } catch (e: Exception) {

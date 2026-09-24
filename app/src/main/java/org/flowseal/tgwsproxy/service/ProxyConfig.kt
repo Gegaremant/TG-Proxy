@@ -112,10 +112,6 @@ class ProxyConfig(context: Context) {
         get() = prefs.getString("dns_servers", "") ?: ""
         set(value) = prefs.edit().putString("dns_servers", value).apply()
 
-    var disableSecure: Boolean
-        get() = prefs.getBoolean("disable_secure", false)
-        set(value) = prefs.edit().putBoolean("disable_secure", value).apply()
-
     fun parseDnsServers(): List<String> {
         val raw = dnsServers
         return raw.split(',', ';', ' ', '\n')
