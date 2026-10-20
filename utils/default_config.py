@@ -8,6 +8,7 @@ import random
 import sys
 import os
 from typing import Any, Dict
+from copy import deepcopy
 
 from ui.i18n import detect_system_language
 
@@ -21,17 +22,19 @@ _TRAY_DEFAULTS_COMMON: Dict[str, Any] = {
     "buf_kb": 256,
     "pool_size": 4,
     "cfproxy": True,
+    "h2": True,
     "cfproxy_user_domain_enabled": False,
     "cfproxy_user_domain": [],
     "cfproxy_worker_enabled": False,
     "cfproxy_worker_domain": [],
     "force_test_dc": False,
     "no_secure": False,
+    "appearance": "auto",
 }
 
 
 def default_tray_config() -> Dict[str, Any]:
-    cfg = dict(_TRAY_DEFAULTS_COMMON)
+    cfg = deepcopy(_TRAY_DEFAULTS_COMMON)
     cfg["secret"] = os.urandom(16).hex()
     # Random port, generated ONCE and persisted in config.json — a stable
     # configuration stays put, but each fresh install gets its own port.

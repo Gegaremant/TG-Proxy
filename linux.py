@@ -5,6 +5,7 @@ import subprocess
 import sys
 import threading
 import time
+import webbrowser
 from typing import Optional
 
 import customtkinter as ctk
@@ -12,29 +13,31 @@ import pyperclip
 import pystray
 from PIL import Image, ImageTk
 
-from proxy import get_link_host
+from proxy import __version__, get_link_host
 
 from utils.tray_common import (
-    APP_NAME, DEFAULT_CONFIG, FIRST_RUN_MARKER, LOG_FILE,
-    acquire_lock, bootstrap, check_ipv6_warning, ctk_run_dialog,
-    ensure_ctk_thread, ensure_dirs, load_config, load_icon, log,
-    maybe_notify_update, quit_ctk, release_lock, restart_proxy,
+    APP_NAME, DEFAULT_CONFIG, FIRST_RUN_MARKER, IS_FROZEN, LOG_FILE,
+    acquire_lock, bootstrap, check_ipv6_warning, check_update_async,
+    ctk_run_dialog, ensure_ctk_thread, ensure_dirs, load_config, load_icon,
+    log, quit_ctk, release_lock, restart_proxy,
     save_config, start_proxy, stop_proxy, tg_proxy_url,
 )
 from ui.ctk_tray_ui import (
     install_tray_config_buttons, install_tray_config_form,
     populate_first_run_window, tray_settings_scroll_and_footer,
-    validate_config_form,
 )
 from ui.ctk_theme import (
     CONFIG_DIALOG_FRAME_PAD, CONFIG_DIALOG_SIZE, FIRST_RUN_SIZE,
     create_ctk_toplevel, ctk_theme_for_platform, main_content_frame,
 )
-from ui.i18n import set_language, t
+from ui.i18n import t
+from ui.settings_dialog import SettingsDialog
+from utils.update_check import get_status, relaunch_env
 
 _tray_icon: Optional[object] = None
 _config: dict = {}
 _exiting = False
+_update_flow_lock = threading.Lock()
 
 # dialogs (tkinter messagebox)
 
@@ -147,8 +150,8 @@ def _edit_config_dialog() -> None:
         theme = ctk_theme_for_platform()
         w, h = CONFIG_DIALOG_SIZE
         root = create_ctk_toplevel(
-            ctk, title=t("app.settings_title"), width=w, height=h, theme=theme,
-            after_create=_apply_window_icon,
+            ctk, title=t("app.settings_title"), width=w, height=h, 
+            theme=theme, topmost=False, after_create=_apply_window_icon
         )
         fpx, fpy = CONFIG_DIALOG_FRAME_PAD
         frame = main_content_frame(ctk, root, theme, padx=fpx, pady=fpy)
@@ -158,68 +161,25 @@ def _edit_config_dialog() -> None:
             if _tray_icon is not None:
                 _tray_icon.menu = _build_menu()
 
-        _original_language = _config.get("language", DEFAULT_CONFIG["language"])
-
         widgets = install_tray_config_form(
             ctk, scroll, theme, cfg, DEFAULT_CONFIG,
             show_autostart=False,
-            on_language_change=_refresh_tray_menu,
+            on_update_click=_trigger_update_flow,
         )
-
-        _original_appearance = ctk.get_appearance_mode()
-
-        def _restore_ui_locale() -> None:
-            set_language(_original_language)
-            _refresh_tray_menu()
 
         def _finish() -> None:
             root.destroy()
             done.set()
 
-        def _cancel() -> None:
-            ctk.set_appearance_mode(_original_appearance)
-            _restore_ui_locale()
-            _finish()
+        dialog = SettingsDialog(
+            ctk=ctk, root=root, widgets=widgets, config=_config,
+            defaults=DEFAULT_CONFIG, persist=save_config,
+            refresh_menu=_refresh_tray_menu, finish=_finish,
+            restart=lambda config: restart_proxy(config, _show_error),
+        )
 
-        def on_save() -> None:
-            from tkinter import messagebox
-            merged = validate_config_form(widgets, DEFAULT_CONFIG, include_autostart=False)
-            if isinstance(merged, str):
-                messagebox.showerror(t("app.error_title"), merged, parent=root)
-                return
-
-            merged["force_test_dc"] = _config.get("force_test_dc", DEFAULT_CONFIG["force_test_dc"])
-
-            _ui_only_keys = {"appearance", "check_updates", "language"}
-            config_changed = any(merged.get(k) != _config.get(k) for k in merged)
-            proxy_changed = any(merged.get(k) != _config.get(k) for k in merged if k not in _ui_only_keys)
-
-            if not config_changed:
-                _restore_ui_locale()
-                _finish()
-                return
-
-            save_config(merged)
-            _config.update(merged)
-            set_language(merged.get("language", DEFAULT_CONFIG["language"]))
-            log.info("Config saved: %s", merged)
-            _tray_icon.menu = _build_menu()
-
-            if not proxy_changed:
-                _finish()
-                return
-
-            do_restart = messagebox.askyesno(
-                t("dialog.restart_title"),
-                t("dialog.restart_body"),
-                parent=root,
-            )
-            _finish()
-            if do_restart:
-                threading.Thread(target=lambda: restart_proxy(_config, _show_error), daemon=True).start()
-
-        root.protocol("WM_DELETE_WINDOW", _cancel)
-        install_tray_config_buttons(ctk, footer, theme, on_save=on_save, on_cancel=_cancel)
+        root.protocol("WM_DELETE_WINDOW", dialog.cancel)
+        install_tray_config_buttons(ctk, footer, theme, on_save=dialog.save, on_cancel=dialog.cancel)
 
     ctk_run_dialog(_build)
 
@@ -244,7 +204,7 @@ def _show_first_run() -> None:
         w, h = FIRST_RUN_SIZE
         root = create_ctk_toplevel(
             ctk, title=t("app.name"), width=w, height=h, theme=theme,
-            after_create=_apply_window_icon,
+            topmost=False, after_create=_apply_window_icon,
         )
 
         def on_done(open_tg: bool) -> None:
@@ -259,6 +219,78 @@ def _show_first_run() -> None:
     ctk_run_dialog(_build)
 
 
+# update
+
+
+def _restart_after_update() -> None:
+    from utils.linux_update import exe_path
+
+    stop_proxy()
+    release_lock()
+    exe = str(exe_path())
+    try:
+        subprocess.Popen(
+            [exe, *sys.argv[1:]], env=relaunch_env(),
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL, start_new_session=True,
+        )
+    except OSError as exc:
+        log.error("Failed to launch updated binary: %s", exc)
+        if acquire_lock():
+            start_proxy(_config, _show_error)
+        _show_error(t("update.error", msg=exc))
+        return
+    os._exit(0)
+
+
+def _trigger_update_flow(icon=None, item=None) -> None:
+    if not _update_flow_lock.acquire(blocking=False):
+        return
+
+    def _work() -> None:
+        from utils.linux_update import asset_name, detect_install_kind
+        from utils.update_check import find_asset, RELEASES_PAGE_URL
+
+        try:
+            st = get_status()
+            if _exiting or not st["has_update"]:
+                return
+            if _tray_icon is not None:
+                _tray_icon.menu = _build_menu()
+            kind = detect_install_kind() if IS_FROZEN else None
+            asset = find_asset(asset_name(kind)) if kind else None
+            page_url = st["html_url"] or RELEASES_PAGE_URL
+            if not asset:
+                if _ask_yes_no(t("update.ask_open", version=st["latest"]), t("app.update_title")):
+                    webbrowser.open(page_url)
+                return
+
+            if _ask_yes_no(t("update.ask_install", version=st["latest"]), t("app.update_title")):
+                _install_update(kind, asset, page_url)
+        except Exception:
+            log.exception("Update flow failed")
+        finally:
+            _update_flow_lock.release()
+
+    threading.Thread(target=_work, daemon=True, name="manual-update").start()
+
+
+def _install_update(kind: str, asset: dict, page_url: str) -> None:
+    from utils.linux_update import apply_update
+
+    err = apply_update(
+        kind, asset["url"], digest=asset.get("digest", ""), log=log,
+    )
+    if err is None:
+        log.info("Update installed, restarting")
+        _restart_after_update()
+        return
+
+    log.error("Update failed: %s", err)
+    if _ask_yes_no(t("update.install_fail", error=err), t("app.update_title")):
+        webbrowser.open(page_url)
+
+
 # tray menu
 
 
@@ -266,7 +298,7 @@ def _build_menu():
     host = _config.get("host", DEFAULT_CONFIG["host"])
     port = _config.get("port", DEFAULT_CONFIG["port"])
     link_host = get_link_host(host)
-    return pystray.Menu(
+    items = [
         pystray.MenuItem(t("tray.open_telegram", host=link_host, port=port), _on_open_in_telegram, default=True),
         pystray.MenuItem(t("tray.copy_link"), _on_copy_link),
         pystray.Menu.SEPARATOR,
@@ -275,7 +307,13 @@ def _build_menu():
         pystray.MenuItem(t("tray.logs"), _on_open_logs),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(t("tray.exit"), _on_exit),
-    )
+    ]
+    st = get_status()
+    if st["has_update"]:
+        items.insert(-2, pystray.MenuItem(
+            t("tray.update", current=__version__, new=st["latest"]), _trigger_update_flow,
+        ))
+    return pystray.Menu(*items)
 
 
 # entry point
@@ -298,7 +336,7 @@ def run_tray() -> None:
         return
 
     start_proxy(_config, _show_error)
-    maybe_notify_update(_config, lambda: _exiting, _ask_yes_no)
+    check_update_async(_config, lambda: _exiting, lambda version, url: _trigger_update_flow())
     _show_first_run()
     check_ipv6_warning(_show_info)
 
@@ -311,8 +349,49 @@ def run_tray() -> None:
     log.info("Tray app exited")
 
 
+def _smoke_test() -> None:
+    """Exercise the frozen GUI stack without starting the proxy or writing config."""
+    import gi
+
+    gi.require_version('AppIndicator3', '0.1')
+    gi.require_version('AyatanaAppIndicator3', '0.1')
+    from gi.repository import AppIndicator3, AyatanaAppIndicator3
+
+    # Namespace imports alone do not resolve app_indicator_new: call it too.
+    indicators = [
+        namespace.Indicator.new(
+            'tg-ws-proxy-smoke-test', '', namespace.IndicatorCategory.APPLICATION_STATUS,
+        )
+        for namespace in (AppIndicator3, AyatanaAppIndicator3)
+    ]
+    icon = pystray.Icon('tg-ws-proxy-smoke-test', Image.new('RGB', (16, 16)))
+    root = ctk.CTk()
+    root.withdraw()
+    root.update_idletasks()
+    root.destroy()
+
+    # A successful constructor on the build host can hide missing bundled
+    # libraries. Check where the dynamic loader actually obtained them.
+    bundle_dir = os.path.realpath(sys._MEIPASS) + os.sep
+    prefixes = ('libglib-', 'libgobject-', 'libgio-', 'libgtk-',
+                'libappindicator', 'libayatana-', 'libdbusmenu-')
+    with open('/proc/self/maps', encoding='utf-8') as maps:
+        paths = {line.split(maxsplit=5)[-1].strip() for line in maps}
+    for path in sorted(paths):
+        if os.path.basename(path).startswith(prefixes):
+            if not os.path.realpath(path).startswith(bundle_dir):
+                raise RuntimeError('GUI library loaded outside the bundle: ' + path)
+            print(path)
+    assert icon is not None and all(indicators)
+    print('Linux bundle smoke test passed')
+
+
 def main() -> None:
     import utils.runtime_mode as rt
+
+    if sys.argv[1:] == ['--smoke-test']:
+        _smoke_test()
+        return
 
     # If another GUI instance is already running -> abort (single-instance lock).
     if not acquire_lock():

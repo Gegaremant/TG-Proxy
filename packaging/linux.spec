@@ -3,6 +3,7 @@
 import sys
 import os
 import glob
+import certifi
 
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
@@ -11,19 +12,25 @@ block_cipher = None
 # customtkinter ships JSON themes + assets that must be bundled
 import customtkinter
 ctk_path = os.path.dirname(customtkinter.__file__)
-certifi_datas = collect_data_files('certifi')
+certifi_cafile = certifi.where()
 
 _i18n_path = os.path.join(os.path.dirname(SPEC), os.pardir, 'ui', 'i18n')
 
+appindicator_binaries = [
+    (path, '.')
+    for pattern in ('/usr/lib/*/libappindicator3.so.1',
+                    '/usr/lib/libappindicator3.so.1', '/usr/lib64/libappindicator3.so.1')
+    for path in glob.glob(pattern)
+]
+
+certifi_datas = collect_data_files('certifi')
+
 # Collect gi (PyGObject) submodules and data so pystray._appindicator works
-gi_hiddenimports = collect_submodules('gi')
 gi_datas = collect_data_files('gi')
 
 # Collect GObject typelib files from the system
 typelib_dirs = glob.glob('/usr/lib/*/girepository-1.0')
-typelib_datas = []
-for d in typelib_dirs:
-    typelib_datas.append((d, 'gi_typelibs'))
+typelib_datas = [(d, 'gi_typelibs') for d in typelib_dirs]
 
 # --- Tcl/Tk runtime libraries + scripts required by the bundled _tkinter ---
 # _tkinter links against libtcl9.0.so / libtcl9tk9.0.so and loads init scripts
@@ -56,9 +63,11 @@ for _tdir in ['tcl9.0', 'tk9.0', 'tcl9']:
 a = Analysis(
     [os.path.join(os.path.dirname(SPEC), os.pardir, 'linux.py')],
     pathex=[],
-    binaries=_tcl_libs,
+    binaries=_tcl_libs + appindicator_binaries,
     datas=[(ctk_path, 'customtkinter/'), (_i18n_path, 'ui/i18n')] + certifi_datas + gi_datas + typelib_datas + _tcl_datas,
     hiddenimports=[
+        'httpx',
+        'h2',
         'pystray._appindicator',
         'pystray._xorg',
         'Xlib',
@@ -70,15 +79,22 @@ a = Analysis(
         'cryptography.hazmat.primitives.ciphers.modes',
         'cryptography.hazmat.backends.openssl',
         'gi',
-        '_gi',
         'gi.repository.GLib',
         'gi.repository.GObject',
         'gi.repository.Gtk',
         'gi.repository.Gdk',
+        'gi.repository.DBus',
+        'gi.repository.AppIndicator3',
         'gi.repository.AyatanaAppIndicator3',
-    ] + gi_hiddenimports,
+    ],
     hookspath=[],
-    hooksconfig={},
+    hooksconfig={
+        'gi': {
+            'icons': [],
+            'themes': [],
+            'languages': ['en', 'ru'],
+        },
+    },
     runtime_hooks=[],
     excludes=[
         'PIL._avif',
@@ -88,6 +104,29 @@ a = Analysis(
     noarchive=False,
     cipher=block_cipher,
 )
+
+a.datas += [('certifi/cacert.pem', certifi_cafile, 'DATA')]
+
+_required_libraries = {
+    'libglib-2.0.so.0', 'libgobject-2.0.so.0', 'libgio-2.0.so.0',
+    'libgtk-3.so.0', 'libappindicator3.so.1',
+    'libayatana-appindicator3.so.1',
+}
+_required_typelibs = {
+    'AppIndicator3-0.1.typelib', 'AyatanaAppIndicator3-0.1.typelib', 'DBus-1.0.typelib',
+}
+_bundled_libraries = {
+    os.path.basename(name)
+    for name, _, kind in a.binaries + a.datas
+    if kind in ('BINARY', 'SYMLINK')
+}
+_missing = (
+    _required_libraries - _bundled_libraries
+) | (
+    _required_typelibs - {os.path.basename(name) for name, _, _ in a.datas}
+)
+if _missing:
+    raise RuntimeError('Incomplete Linux GI bundle: ' + ', '.join(sorted(_missing)))
 
 _PIL_EXCLUDE_PYDS = {
     '_avif', '_webp', '_imagingtk',

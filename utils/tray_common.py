@@ -11,10 +11,12 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
+from copy import deepcopy
 
 import psutil
 
 from proxy import __version__, get_link_host, parse_dc_ip_list, proxy_config, coerce_domain_list
+from proxy.utils import DomainCensorFilter
 from proxy.tg_ws_proxy import _run
 from proxy.utils import DomainCensorFilter
 from utils.default_config import default_tray_config
@@ -211,7 +213,7 @@ def load_config() -> dict:
         except Exception as exc:
             log.warning("Failed to load config: %s", repr(exc))
     if cfg is None:
-        cfg = dict(DEFAULT_CONFIG)
+        cfg = deepcopy(DEFAULT_CONFIG)
     _apply_ui_language(cfg)
     return cfg
 
@@ -358,6 +360,7 @@ def apply_proxy_config(cfg: dict) -> bool:
     pc.buffer_size = max(4, cfg.get("buf_kb", DEFAULT_CONFIG["buf_kb"])) * 1024
     pc.pool_size = max(0, cfg.get("pool_size", DEFAULT_CONFIG["pool_size"]))
     pc.fallback_cfproxy = cfg.get("cfproxy", DEFAULT_CONFIG["cfproxy"])
+    pc.cfproxy_h2_media = cfg.get("h2", DEFAULT_CONFIG["h2"])
     cfproxy_user_domains = coerce_domain_list(
         cfg.get("cfproxy_user_domain", DEFAULT_CONFIG["cfproxy_user_domain"])
     )
@@ -459,39 +462,55 @@ def check_ipv6_warning(show_info: Callable[[str, str], None]) -> None:
 
 # update check
 
-def maybe_notify_update(
+def check_update_async(
     cfg: dict,
     is_exiting: Callable[[], bool],
-    ask_open: Callable[[str, str], bool],
+    on_update: Callable[[str, str], None],
 ) -> None:
+    """Check the latest release in the background.
+
+    on_update(version, release_page_url) is called from the worker thread
+    when a newer version is available.
+    """
     if not cfg.get("check_updates", True):
         return
 
-    def _work():
+    def _work() -> None:
         time.sleep(1.5)
         if is_exiting():
             return
         try:
             from utils.update_check import RELEASES_PAGE_URL, get_status, run_check
-            import webbrowser
 
             run_check(__version__)
             st = get_status()
-            if not st.get("has_update"):
+            if not st.get("has_update") or is_exiting():
                 return
-            url = (st.get("html_url") or "").strip() or RELEASES_PAGE_URL
-            ver = st.get("latest") or "?"
-            from ui.i18n import t
-
-            if ask_open(
-                t("update.ask_open", version=ver),
-                t("app.update_title"),
-            ):
-                webbrowser.open(url)
+            on_update(
+                st.get("latest") or "?",
+                (st.get("html_url") or "").strip() or RELEASES_PAGE_URL,
+            )
         except Exception as exc:
             log.warning("Update check failed: %s", repr(exc))
 
     threading.Thread(target=_work, daemon=True, name="update-check").start()
+
+
+def maybe_notify_update(
+    cfg: dict,
+    is_exiting: Callable[[], bool],
+    ask_open: Callable[[str, str], bool],
+) -> None:
+    """Check for updates and offer to open the release page."""
+    def _on_update(version: str, url: str) -> None:
+        import webbrowser
+
+        from ui.i18n import t
+
+        if ask_open(t("update.ask_open", version=version), t("app.update_title")):
+            webbrowser.open(url)
+
+    check_update_async(cfg, is_exiting, _on_update)
 
 
 # ctk thread (windows / linux)
