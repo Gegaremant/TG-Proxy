@@ -22,18 +22,58 @@ from ui.ctk_tooltip import attach_ctk_tooltip, attach_tooltip_to_widgets
 from ui.settings import validate_settings
 from ui.i18n import (
     label_from_language, language_from_label, language_option_labels,
-    set_language, get_language, t,
+    set_language, t,
 )
 
 _INNER_W = 396
 _APPEARANCE_KEYS = ("auto", "light", "dark")
 _APPEARANCE_TO_CTK = {"auto": "system", "light": "Light", "dark": "Dark"}
 
+GITHUB_REPO_URL = "https://github.com/Gegaremant/TG-Proxy"
+
+# SNI candidates for the Fake-TLS auto config probe (port of the
+# desktop/Android DEFAULT_SNI_LIST).
+DEFAULT_SNI_LIST = [
+    "stats.vk-portal.net", "sun6-21.userapi.com", "r3.mail.ru", "api.vk.com", "m.vk.com",
+    "akamai.com", "okcdn.ru", "gazprombank.ru", "www.unicreditbank.ru", "cdn.gpb.ru", "max.ru",
+    "yandex.ru", "gosuslugi.ru", "kremlin.ru", "vk.com", "ok.ru", "mail.ru", "dzen.ru",
+    "ozon.ru", "wildberries.ru", "sberbank.ru", "alfabank.ru", "tbank.ru", "nspk.ru",
+    "mts.ru", "megafon.ru", "beeline.ru", "tele2.ru", "avito.ru", "rutube.ru", "kinopoisk.ru",
+    "2gis.ru", "magnit.ru", "dev.max.ru", "mc.yandex.ru", "minjust.gov.ru", "img.avito.st",
+    "m.ok.ru", "vk.ru", "m.vk.ru", "music.vk.com", "music.ok.ru", "music.m.vk.com",
+    "ya.ru", "25111.ms.vk.com", "api.mycdn.me", "i.mycdn.me", "mycdn.me", "persiq.vk.com",
+    "connect.ok.ru", "extimp.userapi.com", "penis.userapi.com", "tywidv1.userapi.com",
+    "fptn.vpn.mradx.net", "sosok.vk.com", "fptn.vpn.vk.com", "static.vk.com",
+    "cdn1.ozonusercontent.com", "ir.ozone.ru", "xyz.ozone.ru", "cdnvideo.v.ozone.ru",
+    "vr-1.ozone.ru", "ntp.ix.ru", "mos.ru", "web.max.ru", "742231.ms.ok.ru", "www.mos.ru",
+    "goya.rutube.ru", "counter.yadro.ru", "eh.vk.com",
+]
+
 
 def _get_doc_url(doc_name: str) -> str:
-    lang = get_language().value
-    lang_folder = "EN" if lang == "en" else "RU"
-    return f"https://github.com/Flowseal/tg-ws-proxy/blob/main/docs/{lang_folder}/{doc_name}.md"
+    # This fork keeps its documentation in the root README (the upstream
+    # docs/ tree was dropped), so every "docs" link points there.
+    return f"{GITHUB_REPO_URL}/blob/main/README.md"
+
+
+def _probe_best_sni() -> str:
+    """TCP-probe a sample of SNI domains (port 443) and return the fastest."""
+    import random
+    import socket
+    import time
+
+    best, best_time = "sberbank.ru", 999.0
+    for sni in random.sample(DEFAULT_SNI_LIST, min(10, len(DEFAULT_SNI_LIST))):
+        try:
+            start = time.time()
+            sock = socket.create_connection((sni, 443), timeout=1)
+            sock.close()
+            elapsed = time.time() - start
+            if elapsed < best_time:
+                best_time, best = elapsed, sni
+        except Exception:
+            continue
+    return best
 
 
 def _appearance_options() -> List[str]:
@@ -72,6 +112,7 @@ class TrayConfigFormWidgets:
     cfproxy_worker_domain_var: Optional[Any] = None
     appearance_var: Optional[Any] = None
     language_var: Optional[Any] = None
+    fake_tls_var: Optional[Any] = None
 
 
 def install_tray_config_form(
@@ -90,7 +131,9 @@ def install_tray_config_form(
 
     _create_header(ctk, frame, theme)
     appearance_var, language_var = _create_interface(ctk, frame, theme, cfg, default_config)
-    host_var, port_var, secret_var = _create_connection(ctk, frame, theme, cfg, default_config)
+    host_var, port_var, secret_var, fake_tls_var = _create_connection(
+        ctk, frame, theme, cfg, default_config,
+    )
     dc_textbox = _create_dc(ctk, frame, theme, cfg, default_config)
     cfproxy_var, h2_var, cf_custom_cb_var, cfproxy_user_domain_var = _create_cfproxy(
         ctk, frame, theme, cfg, default_config, no_secure_var,
@@ -106,6 +149,7 @@ def install_tray_config_form(
 
     return TrayConfigFormWidgets(
         host_var=host_var, port_var=port_var, secret_var=secret_var,
+        fake_tls_var=fake_tls_var,
         dc_textbox=dc_textbox, verbose_var=verbose_var, no_secure_var=no_secure_var,
         advanced_vars=advanced_vars,
         autostart_var=autostart_var, check_updates_var=check_updates_var,
@@ -133,6 +177,14 @@ def _create_header(ctk, frame, theme):
         font=(theme.ui_font_family, 12),
         text_color=theme.text_secondary, anchor="e",
     ).pack(side="right", padx=(4, 0))
+
+    ctk.CTkButton(
+        header, text=t("button.github"), width=90, height=28,
+        font=(theme.ui_font_family, 13, "bold"), corner_radius=8,
+        fg_color="#333333", hover_color="#555555",
+        text_color="#ffffff", border_width=0,
+        command=lambda: webbrowser.open(GITHUB_REPO_URL),
+    ).pack(side="right", padx=(0, 6))
 
     ctk.CTkButton(
         header, text=t("button.donate"), width=90, height=28,
@@ -224,7 +276,53 @@ def _create_connection(ctk, frame, theme, cfg, default_config):
         text_color="#ffffff", border_width=1, border_color=theme.field_border,
         command=lambda: secret_var.set(os.urandom(16).hex()),
     ).pack()
-    return host_var, port_var, secret_var
+
+    fake_tls_row = ctk.CTkFrame(conn, fg_color="transparent")
+    fake_tls_row.pack(fill="x", pady=(8, 0))
+
+    fake_tls_col, fake_tls_var = create_labeled_entry(
+        ctk, fake_tls_row, theme, t("label.fake_tls"),
+        cfg.get("fake_tls_domain", default_config.get("fake_tls_domain", "")),
+        tip=t("tip.fake_tls"), width=160, pack_fill=True,
+    )
+    fake_tls_col.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+    # Auto config: probe a sample of SNI domains and keep the fastest one.
+    preset_row = ctk.CTkFrame(conn, fg_color="transparent")
+    preset_row.pack(fill="x", pady=(6, 0))
+
+    auto_cfg_task = BackgroundTask(frame.winfo_toplevel())
+
+    def _on_auto_config():
+        if auto_cfg_task.running:
+            return
+        _auto_cfg_widget.configure(text=t("button.test_loading"), state="disabled")
+
+        def finish():
+            _auto_cfg_widget.configure(text=t("button.auto_config"), state="normal")
+
+        def complete(best: str) -> None:
+            fake_tls_var.set(best)
+            try:
+                from tkinter import messagebox
+                messagebox.showinfo(
+                    t("button.auto_config"), t("auto_config.done", sni=best),
+                    parent=frame.winfo_toplevel(),
+                )
+            except Exception:
+                pass
+
+        auto_cfg_task.start(_probe_best_sni, complete, finish)
+
+    _auto_cfg_widget = ctk.CTkButton(
+        preset_row, text=t("button.auto_config"), width=120, height=32,
+        font=(theme.ui_font_family, 13), corner_radius=8,
+        fg_color="#f59e0b", hover_color="#d97706",
+        text_color="#ffffff", border_width=0,
+        command=_on_auto_config,
+    )
+    _auto_cfg_widget.pack(side="left")
+    return host_var, port_var, secret_var, fake_tls_var
 
 
 def _create_dc(ctk, frame, theme, cfg, default_config):
@@ -592,6 +690,8 @@ def validate_config_form(
         "dc_ip": widgets.dc_textbox.get("1.0", "end"),
         "verbose": bool(widgets.verbose_var.get()),
     }
+    if widgets.fake_tls_var is not None:
+        values["fake_tls_domain"] = widgets.fake_tls_var.get().strip()
     for key, var in widgets.advanced_vars.items():
         values[key] = var.get()
     for key in (

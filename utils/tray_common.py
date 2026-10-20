@@ -379,6 +379,11 @@ def apply_proxy_config(cfg: dict) -> bool:
     )
     pc.force_test_dc = cfg.get("force_test_dc", DEFAULT_CONFIG["force_test_dc"])
     pc.disable_secure = cfg.get("no_secure", DEFAULT_CONFIG["no_secure"])
+    # The settings form saves fake_tls_domain but it used to be dropped here,
+    # so the tray UI never actually applied Fake TLS — wire it up now.
+    pc.fake_tls_domain = str(
+        cfg.get("fake_tls_domain", DEFAULT_CONFIG.get("fake_tls_domain", ""))
+    ).strip()
     return True
 
 
