@@ -44,6 +44,11 @@ class ProxyServer(
     private val DC_FAIL_COOLDOWN = 60_000L
     private val WS_FAIL_TIMEOUT = 5000
 
+    // CF endpoint health thresholds (see bridgeWsReencrypt).
+    private val EARLY_CLOSE_MS = 15_000L
+    private val EARLY_CLOSE_MIN_BYTES = 100L * 1024
+    private val HEALTHY_LIFETIME_MS = 60_000L
+
     private val bufSize = bufKb * 1024
     
     private val secretBytes: ByteArray
@@ -281,6 +286,9 @@ class ProxyServer(
             var ws: RawWebSocket? = null
             var wsFailedRedirect = false
             var allRedirects = true
+            // Base CF-proxy domain the winning connection went through (for
+            // health reporting into CfDomains), null for direct/worker routes.
+            var cfBaseUsed: String? = null
 
             // Если для DC нет заданного IP (режим Cloudflare без конкретных DC),
             // сразу ныряем в CF-fallback, как делает эталонный прокси.
@@ -293,6 +301,7 @@ class ProxyServer(
                 log("[$label] DC$dc$mediaTag -> CF Proxy wss://$cfDomain/apiws")
                 try {
                     ws = RawWebSocket.connect(cfDomain, cfDomain, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                    cfBaseUsed = cfProxyDomain
                     allRedirects = false
                 } catch (e: Exception) {
                     stats.wsErrors.incrementAndGet()
@@ -321,18 +330,22 @@ class ProxyServer(
             if (ws == null && useCfProxy) {
                 for (cfHost in TelegramDC.cfWsEndpoints(dc, isMedia)) {
                     log("[$label] DC$dc$mediaTag -> CF wss://$cfHost/apiws")
+                    val cfBase = cfHost.substringAfter('.', cfHost)
                     try {
                         ws = RawWebSocket.connect(cfHost, cfHost, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                        cfBaseUsed = cfBase
                         allRedirects = false
                         stats.connectionsCfProxy.incrementAndGet()
                         break
                     } catch (e: WsHandshakeError) {
                         stats.wsErrors.incrementAndGet()
                         if (!e.isRedirect) allRedirects = false
+                        CfDomains.reportFailure(cfBase)
                         log("[$label] DC$dc$mediaTag CF handshake failed: ${e.statusLine}")
                     } catch (e: Exception) {
                         stats.wsErrors.incrementAndGet()
                         allRedirects = false
+                        CfDomains.reportFailure(cfBase)
                         log("[$label] DC$dc$mediaTag CF connect failed: $e")
                     }
                 }
@@ -407,7 +420,7 @@ class ProxyServer(
             } catch (_: Exception) {}
 
             ws.send(relayInit)
-            bridgeWsReencrypt(input, output, ws, label, client, dc, isMedia, splitter, ctx)
+            bridgeWsReencrypt(input, output, ws, label, client, dc, isMedia, splitter, ctx, cfBaseUsed)
 
         } catch (e: Exception) {
             Log.d(TAG, "[$label] error: $e")
@@ -420,7 +433,8 @@ class ProxyServer(
         clientIn: InputStream, clientOut: OutputStream,
         ws: RawWebSocket, label: String, clientSocket: Socket,
         dc: Int, isMedia: Boolean,
-        splitter: MsgSplitter?, ctx: CryptoCtx
+        splitter: MsgSplitter?, ctx: CryptoCtx,
+        cfBase: String? = null
     ) {
         val dcTag = "DC$dc${if (isMedia) "m" else ""}"
         val startTime = System.currentTimeMillis()
@@ -495,8 +509,21 @@ class ProxyServer(
         t1.join()
         t2.join()
 
-        val elapsed = (System.currentTimeMillis() - startTime) / 1000.0
+        val elapsedMs = System.currentTimeMillis() - startTime
+        val elapsed = elapsedMs / 1000.0
         log("[$label] $dcTag WS closed: ^${Stats.humanBytes(upBytes)} v${Stats.humanBytes(downBytes)} in %.1fs".format(elapsed))
+
+        // CF endpoint health: a connection that dies within seconds while it
+        // was actively transferring means the endpoint is bad -> failure.
+        // A connection that survived a minute is a keeper -> reset its strikes.
+        if (cfBase != null) {
+            if (elapsedMs < EARLY_CLOSE_MS && (upBytes + downBytes) > EARLY_CLOSE_MIN_BYTES) {
+                CfDomains.reportFailure(cfBase)
+                log("[$label] CF endpoint $cfBase closed early (${elapsedMs / 1000}s), deprioritizing")
+            } else if (elapsedMs >= HEALTHY_LIFETIME_MS) {
+                CfDomains.reportSuccess(cfBase)
+            }
+        }
     }
 
     private fun readExactly(input: InputStream, n: Int): ByteArray {

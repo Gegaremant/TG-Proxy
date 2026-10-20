@@ -223,11 +223,7 @@ class RawWebSocket private constructor(
                 readFrame()
             } catch (e: IdleTimeoutException) {
                 try {
-                    val ping = buildFrame(OP_PING, ByteArray(0), mask = true)
-                    synchronized(output) {
-                        output.write(ping)
-                        output.flush()
-                    }
+                    sendKeepalivePing()
                 } catch (_: Exception) {
                     closed = true
                     return null
@@ -282,17 +278,53 @@ class RawWebSocket private constructor(
 
     val isClosed: Boolean get() = closed || socket.isClosed
 
-    private fun readFrame(): Pair<Int, ByteArray> {
-        val hdr = ByteArray(2)
+    /**
+     * Send a WS ping frame. Used to keep the connection (and any middleboxes)
+     * alive while we are waiting for more data. Throws on write failure.
+     */
+    private fun sendKeepalivePing() {
+        val ping = buildFrame(OP_PING, ByteArray(0), mask = true)
+        synchronized(output) {
+            output.write(ping)
+            output.flush()
+        }
+    }
+
+    /**
+     * Read one byte, converting an idle read timeout into [IdleTimeoutException]
+     * (only valid for the *first* byte of a frame, where no frame state exists yet).
+     */
+    private fun readFirstByteOrIdle(): Int {
         try {
-            val b0 = input.read()
-            if (b0 == -1) throw java.io.EOFException("Connection closed")
-            hdr[0] = b0.toByte()
+            return input.read()
         } catch (e: java.net.SocketTimeoutException) {
             throw IdleTimeoutException()
         }
+    }
 
-        val b1 = input.read()
+    /**
+     * Read one byte *within an already-started frame*. A read timeout here must
+     * NOT restart the frame parse (bytes were already consumed, resync would
+     * corrupt the stream) and must NOT kill the connection: send a keepalive
+     * ping and keep waiting for the rest of the frame.
+     */
+    private fun readByteInFrame(): Int {
+        while (true) {
+            try {
+                return input.read()
+            } catch (e: java.net.SocketTimeoutException) {
+                sendKeepalivePing()
+            }
+        }
+    }
+
+    private fun readFrame(): Pair<Int, ByteArray> {
+        val hdr = ByteArray(2)
+        val b0 = readFirstByteOrIdle()
+        if (b0 == -1) throw java.io.EOFException("Connection closed")
+        hdr[0] = b0.toByte()
+
+        val b1 = readByteInFrame()
         if (b1 == -1) throw java.io.EOFException("Connection closed")
         hdr[1] = b1.toByte()
 
@@ -321,7 +353,15 @@ class RawWebSocket private constructor(
         val buf = ByteArray(n)
         var offset = 0
         while (offset < n) {
-            val read = input.read(buf, offset, n - offset)
+            // A timeout mid-frame means the sender stalled, not that the frame
+            // is lost: ping to keep things alive and resume reading exactly
+            // where we left off (a timeout consumes no bytes).
+            val read = try {
+                input.read(buf, offset, n - offset)
+            } catch (e: java.net.SocketTimeoutException) {
+                sendKeepalivePing()
+                continue
+            }
             if (read == -1) throw java.io.EOFException("Connection closed")
             offset += read
         }

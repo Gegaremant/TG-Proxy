@@ -45,6 +45,14 @@ class ProxyConfig(context: Context) {
         get() = prefs.getBoolean("autostart", false)
         set(value) = prefs.edit().putBoolean("autostart", value).apply()
 
+    /**
+     * Auto connection check on Start: probe SNI domains and pick the fastest
+     * fake-TLS domain before launching the proxy. Default on (current behaviour).
+     */
+    var autoCheck: Boolean
+        get() = prefs.getBoolean("auto_check", true)
+        set(value) = prefs.edit().putBoolean("auto_check", value).apply()
+
     var secret: String
         get() {
             var s = prefs.getString("secret", null)
@@ -83,8 +91,14 @@ class ProxyConfig(context: Context) {
         set(value) = prefs.edit().putBoolean("use_cf_proxy", value).apply()
 
     var cfProxyDomain: String
-        get() = prefs.getString("cf_proxy_domain", "") ?: ""
-        set(value) = prefs.edit().putString("cf_proxy_domain", value).apply()
+        // Sanitize on read: users sometimes paste "proxy://domain", "wss://domain/path"
+        // etc. — anything scheme/path-like must not leak into "kws{dc}.{domain}".
+        get() = (prefs.getString("cf_proxy_domain", "") ?: "")
+            .trim()
+            .replace(Regex("[a-zA-Z][a-zA-Z0-9+.\\-]*://"), "")
+            .substringBefore('/')
+            .trim()
+        set(value) = prefs.edit().putString("cf_proxy_domain", value.trim()).apply()
 
     /**
      * Cloudflare Worker domain (e.g. "mwapp-is-super.workers.dev"). When set,

@@ -39,7 +39,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -87,10 +86,50 @@ fun updateLocale(context: Context, language: String): Context {
     return context.createConfigurationContext(config)
 }
 
+/**
+ * Probe a sample of SNI domains from [DEFAULT_SNI_LIST] and return the fastest
+ * one (used as the fake-TLS domain). Shared by the main-screen "Auto Config"
+ * button and the optional auto-check performed on Start.
+ */
+suspend fun runSniAutoConfig(config: ProxyConfig): String = withContext(Dispatchers.IO) {
+    var best = config.fakeTlsDomain.ifBlank { "sberbank.ru" }
+    var bestTime = Long.MAX_VALUE
+    for (sni in DEFAULT_SNI_LIST.shuffled().take(10)) {
+        try {
+            val start = System.currentTimeMillis()
+            val socket = Socket()
+            socket.connect(InetSocketAddress(sni, 443), 1500)
+            socket.close()
+            val time = System.currentTimeMillis() - start
+            if (time < bestTime) {
+                bestTime = time
+                best = sni
+            }
+        } catch (_: Exception) {}
+    }
+    best
+}
+
 class MainActivity : ComponentActivity() {
 
     private var proxyService: ProxyService? = null
     private var bound = mutableStateOf(false)
+
+    /**
+     * Apply the saved locale at the *base* level so every context created
+     * from this activity (Compose, Toast, startActivity) shares it.
+     * The old approach — swapping LocalContext with a createConfigurationContext
+     * wrapper — produced a non-Activity context after a language switch, which
+     * crashed as soon as anything called startActivity() (e.g. the GitHub button).
+     */
+    override fun attachBaseContext(newBase: Context) {
+        val lang = try {
+            ProxyConfig(newBase).language
+        } catch (_: Exception) {
+            "auto"
+        }
+        super.attachBaseContext(updateLocale(newBase, lang))
+    }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -119,33 +158,31 @@ class MainActivity : ComponentActivity() {
         setContent {
             val config = remember { ProxyConfig(this) }
             var themeMode by remember { mutableStateOf(config.themeMode) }
-            var language by remember { mutableStateOf(config.language) }
-
-            // Wrap context with new locale
-            val localizedContext = remember(language) { updateLocale(this, language) }
 
             TgWsProxyTheme(themeMode = themeMode) {
-                CompositionLocalProvider(LocalContext provides localizedContext) {
-                    MainScreen(
-                        context = localizedContext,
-                        bound = bound,
-                        getService = { proxyService },
-                        onStart = { startProxyService() },
-                        onStop = { stopProxyService() },
-                        onRestart = { restartProxyService() },
-                        config = config,
-                        themeMode = themeMode,
-                        onThemeModeChanged = { newMode ->
-                            config.themeMode = newMode
-                            themeMode = newMode
-                        },
-                        language = language,
-                        onLanguageChanged = { newLang ->
+                MainScreen(
+                    context = this,
+                    bound = bound,
+                    getService = { proxyService },
+                    onStart = { startProxyService() },
+                    onStop = { stopProxyService() },
+                    onRestart = { restartProxyService() },
+                    config = config,
+                    themeMode = themeMode,
+                    onThemeModeChanged = { newMode ->
+                        config.themeMode = newMode
+                        themeMode = newMode
+                    },
+                    language = config.language,
+                    onLanguageChanged = { newLang ->
+                        if (newLang != config.language) {
                             config.language = newLang
-                            language = newLang
+                            // Apply the new locale by recreating the activity:
+                            // attachBaseContext re-reads it from prefs.
+                            recreate()
                         }
-                    )
-                }
+                    }
+                )
             }
         }
     }
@@ -395,6 +432,7 @@ fun MainScreen(
             }
 
             var isStarting by remember { mutableStateOf(false) }
+            var isAutoConfiguring by remember { mutableStateOf(false) }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -406,26 +444,11 @@ fun MainScreen(
                             if (isStarting) return@Button
                             isStarting = true
                             scope.launch {
-                                // Auto-config
-                                val bestSni = withContext(Dispatchers.IO) {
-                                    var best = config.fakeTlsDomain.ifBlank { "sberbank.ru" }
-                                    var bestTime = Long.MAX_VALUE
-                                    for (sni in DEFAULT_SNI_LIST.shuffled().take(10)) {
-                                        try {
-                                            val start = System.currentTimeMillis()
-                                            val socket = Socket()
-                                            socket.connect(InetSocketAddress(sni, 443), 1500)
-                                            socket.close()
-                                            val time = System.currentTimeMillis() - start
-                                            if (time < bestTime) {
-                                                bestTime = time
-                                                best = sni
-                                            }
-                                        } catch (_: Exception) {}
-                                    }
-                                    best
+                                // Optional auto connection check (settings toggle):
+                                // probe SNI domains and pick the fastest one before start.
+                                if (config.autoCheck) {
+                                    config.fakeTlsDomain = runSniAutoConfig(config)
                                 }
-                                config.fakeTlsDomain = bestSni
                                 onStart()
                                 isStarting = false
                             }
@@ -443,7 +466,12 @@ fun MainScreen(
                             Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
                         }
                         Spacer(Modifier.width(8.dp))
-                        Text(if (isStarting) stringResource(R.string.auto_config_running) else stringResource(R.string.start_proxy))
+                        Text(
+                            when {
+                                isStarting && config.autoCheck -> stringResource(R.string.auto_config_running)
+                                else -> stringResource(R.string.start_proxy)
+                            }
+                        )
                     }
                 } else {
                     Button(
@@ -454,6 +482,39 @@ fun MainScreen(
                         Icon(Icons.Default.Stop, null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.stop_proxy))
+                    }
+                }
+            }
+
+            // Standalone auto config (moved here from settings): pick the best
+            // fake-TLS SNI domain without starting the proxy.
+            if (!isRunning) {
+                OutlinedButton(
+                    onClick = {
+                        if (isAutoConfiguring) return@OutlinedButton
+                        isAutoConfiguring = true
+                        scope.launch {
+                            val bestSni = runSniAutoConfig(config)
+                            config.fakeTlsDomain = bestSni
+                            isAutoConfiguring = false
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.auto_config_done) + ": $bestSni",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isAutoConfiguring) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.auto_config_running))
+                    } else {
+                        Text(stringResource(R.string.auto_config))
                     }
                 }
             }
@@ -636,9 +697,7 @@ fun SettingsPanel(
     var fakeTlsDomain by remember { mutableStateOf(config.fakeTlsDomain) }
     var port by remember { mutableStateOf(config.port.toString()) }
     var showLogs by remember { mutableStateOf(config.showLogs) }
-    
-    val scope = rememberCoroutineScope()
-    var isAutoConfiguring by remember { mutableStateOf(false) }
+    var autoCheck by remember { mutableStateOf(config.autoCheck) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -650,34 +709,19 @@ fun SettingsPanel(
         ) {
             Text(stringResource(R.string.settings), style = MaterialTheme.typography.titleMedium)
 
-            Button(onClick = {
-                if (isAutoConfiguring) return@Button
-                isAutoConfiguring = true
-                scope.launch {
-                    val bestSni = withContext(Dispatchers.IO) {
-                        var best = "sberbank.ru"
-                        var bestTime = Long.MAX_VALUE
-                        for (sni in DEFAULT_SNI_LIST.shuffled().take(10)) {
-                            try {
-                                val start = System.currentTimeMillis()
-                                val socket = Socket()
-                                socket.connect(InetSocketAddress(sni, 443), 2000)
-                                socket.close()
-                                val time = System.currentTimeMillis() - start
-                                if (time < bestTime) {
-                                    bestTime = time
-                                    best = sni
-                                }
-                            } catch (_: Exception) {}
-                        }
-                        best
-                    }
-                    fakeTlsDomain = bestSni
-                    isAutoConfiguring = false
-                    Toast.makeText(context, context.getString(R.string.auto_config_done), Toast.LENGTH_SHORT).show()
-                }
-            }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (isAutoConfiguring) stringResource(R.string.auto_config_running) else stringResource(R.string.auto_config))
+            // Auto connection check: probe SNI domains automatically when the
+            // Start button is pressed (the standalone Auto Config button lives
+            // on the main screen now).
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(stringResource(R.string.auto_check))
+                Switch(
+                    checked = autoCheck,
+                    onCheckedChange = { autoCheck = it }
+                )
             }
 
             Text(stringResource(R.string.language), style = MaterialTheme.typography.bodyMedium)
@@ -804,6 +848,7 @@ fun SettingsPanel(
                     config.port = port.toIntOrNull() ?: 10800
                     config.secret = secret
                     config.fakeTlsDomain = fakeTlsDomain
+                    config.autoCheck = autoCheck
                     config.useCfProxy = useCfProxy
                     config.cfProxyDomain = cfProxyDomain
                     config.cfWorkerDomain = cfWorkerDomain

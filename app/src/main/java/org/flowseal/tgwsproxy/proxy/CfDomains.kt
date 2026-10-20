@@ -8,6 +8,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SSLContext
@@ -46,6 +47,61 @@ object CfDomains {
     @Volatile
     var domains: List<String> = BUILTIN_ENCODED.map { decodeName(it) }
         private set
+
+    // ---- Domain health tracking -------------------------------------------
+    // A domain whose connections keep dying shortly after being established is
+    // temporarily deprioritized: two strikes put it on cooldown with an
+    // exponential backoff (1 min -> 10 min), and cooled-down domains are tried
+    // only after all healthy ones. Success resets the strike counter.
+
+    private class Health {
+        var failures = 0
+        var cooldownUntil = 0L
+    }
+
+    private val health = ConcurrentHashMap<String, Health>()
+    private const val FAILURE_STRIKES = 2
+    private const val COOLDOWN_BASE_MS = 60_000L
+    private const val COOLDOWN_MAX_MS = 600_000L
+
+    /**
+     * Domains ordered for connection attempts: healthy ones first (shuffled to
+     * spread load), cooled-down ones last as a last resort — never dropped
+     * entirely, so a burst of network blips cannot black out the whole pool.
+     */
+    fun healthyDomains(): List<String> {
+        val now = System.currentTimeMillis()
+        val fresh = mutableListOf<String>()
+        val cooled = mutableListOf<String>()
+        for (d in domains) {
+            val h = health[d]
+            if (h != null && now < h.cooldownUntil) cooled += d else fresh += d
+        }
+        fresh.shuffle()
+        cooled.shuffle()
+        return fresh + cooled
+    }
+
+    /** Report that a connection through [domain] failed early (or handshake failed). */
+    fun reportFailure(domain: String) {
+        if (domain.isBlank()) return
+        val h = health.getOrPut(domain) { Health() }
+        synchronized(h) {
+            h.failures++
+            if (h.failures >= FAILURE_STRIKES) {
+                val shift = (h.failures - FAILURE_STRIKES).coerceAtMost(4)
+                val cooldown = (COOLDOWN_BASE_MS shl shift).coerceAtMost(COOLDOWN_MAX_MS)
+                h.cooldownUntil = System.currentTimeMillis() + cooldown
+                Log.w(TAG, "CF domain $domain unhealthy (failures=${h.failures}), cooldown ${cooldown / 1000}s")
+            }
+        }
+    }
+
+    /** Report a healthy, long-lived connection through [domain]. */
+    fun reportSuccess(domain: String) {
+        if (domain.isBlank()) return
+        health.remove(domain)
+    }
 
     /**
      * Decode an obfuscated CF proxy domain name (port of proxy/config.py _dd).
@@ -120,6 +176,7 @@ object CfDomains {
             .toList()
         if (decoded.size >= MIN_VALID_DOMAINS) {
             domains = decoded
+            health.keys.retainAll(decoded.toSet())
             Log.i(TAG, "CF proxy domain pool updated from GitHub (${decoded.size} domains)")
             return decoded.size
         }
