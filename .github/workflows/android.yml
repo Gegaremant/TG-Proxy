@@ -29,6 +29,9 @@ jobs:
     # Стабильный debug-ключ: без него каждый прогон GitHub Actions генерирует
     # новый debug.keystore, подпись APK меняется и обновление поверх предыдущей
     # версии падает с INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+    # AGP 8.5+ на Linux ищет debug-ключ в XDG-пути (~/.config/.android),
+    # старые версии — в ~/.android: кладём в оба, чтобы подпись была
+    # одинаковой в любом окружении.
     - name: Restore stable debug keystore
       env:
         DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
@@ -37,11 +40,29 @@ jobs:
           echo "ERROR: secret ANDROID_DEBUG_KEYSTORE is not set" >&2
           exit 1
         fi
-        mkdir -p ~/.android
+        mkdir -p ~/.android ~/.config/.android
         echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+        cp ~/.android/debug.keystore ~/.config/.android/debug.keystore
+        echo "Restored keystore fingerprint:"
+        keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | grep -m1 "SHA256:"
 
     - name: Build with Gradle
       run: ./gradlew assembleDebug
+
+    # Страховка: APK обязан быть подписан стабильным ключом — иначе обновление
+    # поверх предыдущей установки снова упадёт с INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+    - name: Verify APK signature matches stable keystore
+      run: |
+        KS_FP=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android 2>&1 | sed -n 's/.*SHA256: //p' | head -1 | tr -d ':' | tr 'a-f' 'A-F')
+        APKSIGNER=$(find "${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -1)
+        APK_FP=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -1 | tr -d ':' | tr 'a-f' 'A-F')
+        echo "keystore cert: $KS_FP"
+        echo "apk cert:      $APK_FP"
+        if [ "$KS_FP" != "$APK_FP" ]; then
+          echo "SIGNATURE MISMATCH: APK is not signed with the stable key" >&2
+          exit 1
+        fi
+        echo "OK: APK signed with the stable key"
       
     - name: Rename APK
       run: mv app/build/outputs/apk/debug/app-debug.apk TG-Proxy-1.2.3-Android.apk
