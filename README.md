@@ -66,3 +66,5 @@
 
 ## Другие проекты Gegaremant labs
 * 🤖 **виртуальный ассистент KatYa**: [https://github.com/Gegaremant/KatYa_2](https://github.com/Gegaremant/KatYa_2)
+* **Free Brain**: [https://github.com/Gegaremant/API_Brain_for_LLM](https://github.com/Gegaremant/API_Brain_for_LLM)
+* ⚙️ **build LLM SRV in garbidge**: [https://github.com/Gegaremant/LLM_Server_Ecosystem](https://github.com/Gegaremant/LLM_Server_Ecosystem)
