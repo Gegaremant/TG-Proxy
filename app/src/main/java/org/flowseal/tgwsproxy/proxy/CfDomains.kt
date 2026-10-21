@@ -103,8 +103,8 @@ object CfDomains {
      * A plain WebSocket handshake is not enough: half of the public domains
      * accept the upgrade and then drop the MTProto stream right after the
      * init packet, which looks exactly like "the proxy is not working".
-     * So we send a proper relay-init and check that the endpoint keeps the
-     * connection alive.
+     * So we send a proper relay-init and watch the connection: if the
+     * endpoint sends data or keeps the stream open, it is usable.
      */
     suspend fun probeDomain(domain: String, dc: Int = 2, timeoutMs: Int = 4000): Boolean =
         withContext(Dispatchers.IO) {
@@ -114,17 +114,32 @@ object CfDomains {
                 ws = RawWebSocket.connect(host, host, timeoutMs = timeoutMs)
                 // Same init the proxy sends to the endpoint.
                 ws.send(CryptoHelper.generateRelayInit(ABRIDGED_PROTO_TAG, dc))
-                // Give the endpoint a moment to reject the stream.
-                var waited = 0
-                while (waited < PROBE_HOLD_MS) {
-                    Thread.sleep(200)
-                    waited += 200
-                    if (ws.isClosed) {
-                        Log.i(TAG, "probe $host: endpoint dropped the MTProto stream")
-                        return@withContext false
+
+                // Watch the stream: data or a still-open connection means the
+                // endpoint works, an immediate close means it drops us.
+                val gotData = java.util.concurrent.atomic.AtomicBoolean(false)
+                val closed = java.util.concurrent.atomic.AtomicBoolean(false)
+                val watcher = Thread({
+                    try {
+                        val data = ws?.recv()
+                        if (data != null) gotData.set(true) else closed.set(true)
+                    } catch (_: Exception) {
+                        // EOF / read error: the endpoint hung up on us.
+                        closed.set(true)
                     }
+                }, "cf-probe-$host")
+                watcher.isDaemon = true
+                watcher.start()
+                watcher.join(PROBE_HOLD_MS.toLong())
+
+                when {
+                    gotData.get() -> true
+                    closed.get() -> {
+                        Log.i(TAG, "probe $host: endpoint dropped the MTProto stream")
+                        false
+                    }
+                    else -> true // still open, no data yet - the endpoint is alive
                 }
-                true
             } catch (e: Exception) {
                 Log.i(TAG, "probe $host failed: ${e.javaClass.simpleName}: ${e.message}")
                 false
