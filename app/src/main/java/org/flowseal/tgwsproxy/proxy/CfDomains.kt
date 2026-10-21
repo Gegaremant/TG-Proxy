@@ -42,6 +42,13 @@ object CfDomains {
     private const val TIMEOUT_MS = 10_000
     private const val PROBE_PARALLELISM = 6
 
+    // How long the endpoint must keep the MTProto stream alive to count as
+    // usable (a working endpoint never drops the connection right away).
+    private const val PROBE_HOLD_MS = 2000
+
+    // Protocol tag of the abridged MTProto transport.
+    private val ABRIDGED_PROTO_TAG = byteArrayOf(0xEF.toByte(), 0xEF.toByte(), 0xEF.toByte(), 0xEF.toByte())
+
     // Obfuscated names, same as _CFPROXY_ENC in proxy/config.py.
     private val BUILTIN_ENCODED: List<String> = listOf(
         "virkgj.com", "vmmzovy.com", "mkuosckvso.com", "zaewayzmplad.com",
@@ -91,20 +98,38 @@ object CfDomains {
     }
 
     /**
-     * Check whether a domain really answers on the WebSocket endpoint.
-     * Roughly half of the public domains are dead at any moment, and every
-     * dead one costs a full connect timeout on each new client connection.
+     * Check whether a domain really carries Telegram traffic.
+     *
+     * A plain WebSocket handshake is not enough: half of the public domains
+     * accept the upgrade and then drop the MTProto stream right after the
+     * init packet, which looks exactly like "the proxy is not working".
+     * So we send a proper relay-init and check that the endpoint keeps the
+     * connection alive.
      */
     suspend fun probeDomain(domain: String, dc: Int = 2, timeoutMs: Int = 4000): Boolean =
         withContext(Dispatchers.IO) {
             val host = "kws$dc.$domain"
+            var ws: RawWebSocket? = null
             try {
-                val ws = RawWebSocket.connect(host, host, timeoutMs = timeoutMs)
-                try { ws.close() } catch (_: Exception) {}
+                ws = RawWebSocket.connect(host, host, timeoutMs = timeoutMs)
+                // Same init the proxy sends to the endpoint.
+                ws.send(CryptoHelper.generateRelayInit(ABRIDGED_PROTO_TAG, dc))
+                // Give the endpoint a moment to reject the stream.
+                var waited = 0
+                while (waited < PROBE_HOLD_MS) {
+                    Thread.sleep(200)
+                    waited += 200
+                    if (ws.isClosed) {
+                        Log.i(TAG, "probe $host: endpoint dropped the MTProto stream")
+                        return@withContext false
+                    }
+                }
                 true
             } catch (e: Exception) {
                 Log.i(TAG, "probe $host failed: ${e.javaClass.simpleName}: ${e.message}")
                 false
+            } finally {
+                try { ws?.close() } catch (_: Exception) {}
             }
         }
 
