@@ -29,5 +29,5 @@
     <string name="notification_disconnect">Stop</string>
     <string name="battery_optimization_disable">Disable battery optimization</string>
     <string name="battery_optimization_off">Battery optimization is already disabled</string>
-    <string name="app_version">Version 1.2.2</string>
+    <string name="app_version">Version 1.2.3</string>
 </resources>

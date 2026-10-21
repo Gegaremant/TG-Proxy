@@ -29,6 +29,6 @@
     <string name="notification_disconnect">Остановить</string>
     <string name="battery_optimization_disable">Отключить оптимизацию батареи</string>
     <string name="battery_optimization_off">Оптимизация батареи уже отключена</string>
-    <string name="app_version">Версия 1.2.2</string>
+    <string name="app_version">Версия 1.2.3</string>
 </resources>
 
