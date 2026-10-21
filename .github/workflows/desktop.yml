@@ -12,46 +12,83 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-        
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller hatch
+        pip install "pyinstaller==6.13.0" hatch
         pip install -e .
-        
+
     - name: Build Windows
       if: matrix.os == 'windows-latest'
       run: pyinstaller packaging/windows.spec
-      
+
     - name: Build macOS
       if: matrix.os == 'macos-latest'
       run: |
         pyinstaller packaging/macos.spec
         chmod +x packaging/dmg/build_dmg.sh
         packaging/dmg/build_dmg.sh "dist/TG FREE with 🖤 From KatYa && Gegaremant.app" "TG-Proxy" "dist/TG-Proxy-1.2.3-MAC.dmg"
-      
-    - name: Build Linux
-      if: matrix.os == 'ubuntu-latest'
+
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v1.2.3
+        name: "TG-Proxy-1.2.3"
+        files: |
+          dist/TG-Proxy-1.2.3-Windows.exe
+          dist/TG-Proxy-1.2.3-MAC.dmg
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+
+    # linux.spec требует полный GI-бандл (GTK3, AppIndicator/Ayatana, DBus typelib).
+    # Системный python3 + venv --system-site-packages дают pyinstaller доступ к gi.
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-dev
-        pyinstaller packaging/linux.spec
+        sudo apt-get install -y \
+          binutils \
+          python3-dev \
+          python3-venv \
+          python3-gi \
+          python3-gi-cairo \
+          gir1.2-appindicator3-0.1 \
+          gir1.2-ayatanaappindicator3-0.1 \
+          python3-tk
+
+    - name: Create venv with system site-packages
+      run: python3 -m venv --system-site-packages .venv
+
+    - name: Install dependencies
+      run: |
+        .venv/bin/pip install --upgrade pip
+        .venv/bin/pip install "pyinstaller==6.13.0" hatch
+        .venv/bin/pip install -e .
+
+    - name: Build Linux
+      run: .venv/bin/pyinstaller packaging/linux.spec
 
     - name: Download Telegram Desktop binaries
-      if: matrix.os == 'ubuntu-latest'
       run: bash packaging/fetch_tdesktop.sh releases/tgdesktop
-        
+
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
       with:
@@ -59,20 +96,7 @@ jobs:
         name: "TG-Proxy-1.2.3"
         files: |
           dist/TG-Proxy-1.2.3-Linux
-          dist/TG-Proxy-1.2.3-Windows.exe
-          dist/TG-Proxy-1.2.3-MAC.dmg
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload Linux installer and Telegram Desktop
-      if: matrix.os == 'ubuntu-latest'
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v1.2.3
-        name: "TG-Proxy-1.2.3"
-        files: |
           install.sh
           releases/tgdesktop/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

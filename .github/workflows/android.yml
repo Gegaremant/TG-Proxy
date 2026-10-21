@@ -25,7 +25,21 @@ jobs:
         
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-      
+
+    # Стабильный debug-ключ: без него каждый прогон GitHub Actions генерирует
+    # новый debug.keystore, подпись APK меняется и обновление поверх предыдущей
+    # версии падает с INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+    - name: Restore stable debug keystore
+      env:
+        DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+      run: |
+        if [ -z "$DEBUG_KEYSTORE_B64" ]; then
+          echo "ERROR: secret ANDROID_DEBUG_KEYSTORE is not set" >&2
+          exit 1
+        fi
+        mkdir -p ~/.android
+        echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+
     - name: Build with Gradle
       run: ./gradlew assembleDebug
       
