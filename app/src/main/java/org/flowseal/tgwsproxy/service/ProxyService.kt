@@ -132,12 +132,13 @@ class ProxyService : Service() {
             onLog = { msg -> addLog(msg) }
         )
         proxyServer!!.start()
-        addLog("Config: host=127.0.0.1 port=${config.port} fakeTls=${config.fakeTlsDomain} cf=${config.useCfProxy}")
+        val actualPort = proxyServer!!.boundPort
+        addLog("Config: host=127.0.0.1 port=$actualPort fakeTls=${config.fakeTlsDomain} cf=${config.useCfProxy}")
         if (config.upstreamProxy.isNotBlank()) {
             addLog("Upstream SOCKS5: ${config.upstreamProxy}")
         }
-        addLog("Clients connect via 127.0.0.1:${config.port}")
-        updateNotification("Running on localhost:${config.port}")
+        addLog("Clients connect via 127.0.0.1:$actualPort")
+        updateNotification("Running on localhost:$actualPort")
 
         // Автопроверка: в фоне выкидываем из пула мёртвые CF-домены.
         // Половина публичных доменов не отвечает, и каждый мёртвый домен
