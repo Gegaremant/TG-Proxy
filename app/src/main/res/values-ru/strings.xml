@@ -22,9 +22,14 @@
     <string name="logs_saved">Логи сохранены: %1$s</string>
     <string name="logs_save_failed">Не удалось сохранить логи</string>
     <string name="logs_empty">Нет логов для сохранения</string>
-    <string name="auto_config_running">Проверка SNI доменов...</string>
+    <string name="auto_config_running">Автонастройка: проверка доменов...</string>
     <string name="auto_config_done">Автонастройка завершена!</string>
     <string name="auto_check">Автопроверка подключения при старте</string>
+    <string name="auto_connect">Автоподключение</string>
+    <string name="autostart">Автозапуск при загрузке устройства</string>
+    <string name="auto_connect_prompt">Включить автоподключение? Прокси будет запускаться автоматически при открытии приложения.</string>
+    <string name="reconnect">Переподключить</string>
+    <string name="open_in_telegram">Открыть в приложении Telegram</string>
     <string name="notification_restart">Перезапустить</string>
     <string name="notification_disconnect">Остановить</string>
     <string name="battery_optimization_disable">Отключить оптимизацию батареи</string>

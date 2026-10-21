@@ -8,11 +8,19 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.net.ssl.SNIHostName
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocket
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 
 /**
  * Cloudflare-fronted proxy domain pool, mirroring the desktop build.
@@ -32,6 +40,7 @@ object CfDomains {
     private const val MIN_VALID_DOMAINS = 3
     private const val REFRESH_INTERVAL_MS = 3600_000L
     private const val TIMEOUT_MS = 10_000
+    private const val PROBE_PARALLELISM = 6
 
     // Obfuscated names, same as _CFPROXY_ENC in proxy/config.py.
     private val BUILTIN_ENCODED: List<String> = listOf(
@@ -47,6 +56,101 @@ object CfDomains {
     @Volatile
     var domains: List<String> = BUILTIN_ENCODED.map { decodeName(it) }
         private set
+
+    /**
+     * Domains verified by the last availability check. When set, the hourly
+     * GitHub refresh keeps only these — a domain that does not answer must
+     * not come back into the rotation just because the list was refetched.
+     */
+    @Volatile
+    private var verified: Set<String> = emptySet()
+
+    /**
+     * The domain that last worked for a given DC. Kept so every new client
+     * connection starts with an endpoint that is known to be alive instead of
+     * a random (possibly dead) one.
+     */
+    private val pinned = ConcurrentHashMap<Int, String>()
+
+    /** Domains ordered for a DC: the pinned one first, then the rest. */
+    fun orderedDomains(dc: Int): List<String> {
+        val pool = healthyDomains()
+        val current = pinned[dc]
+        if (current == null || current !in pool) return pool
+        return listOf(current) + pool.filter { it != current }
+    }
+
+    /** Remember the domain that worked for [dc]. */
+    fun pin(dc: Int, domain: String) {
+        if (domain.isNotBlank()) pinned[dc] = domain
+    }
+
+    /** Forget the pinned domain for [dc] (it just failed). */
+    fun unpin(dc: Int, domain: String) {
+        if (pinned[dc] == domain) pinned.remove(dc)
+    }
+
+    /**
+     * Check whether a domain really answers on the WebSocket endpoint.
+     * Roughly half of the public domains are dead at any moment, and every
+     * dead one costs a full connect timeout on each new client connection.
+     */
+    suspend fun probeDomain(domain: String, dc: Int = 2, timeoutMs: Int = 4000): Boolean =
+        withContext(Dispatchers.IO) {
+            val host = "kws$dc.$domain"
+            try {
+                val ws = RawWebSocket.connect(host, host, timeoutMs = timeoutMs)
+                try { ws.close() } catch (_: Exception) {}
+                true
+            } catch (e: Exception) {
+                Log.i(TAG, "probe $host failed: ${e.javaClass.simpleName}: ${e.message}")
+                false
+            }
+        }
+
+    /**
+     * Probe the whole pool and keep only the domains that answer.
+     * Returns the working domains; an empty result means "keep everything"
+     * (a failed check must not black out the pool).
+     */
+    suspend fun filterWorkingDomains(
+        dc: Int = 2,
+        onProgress: (checked: Int, total: Int, domain: String, ok: Boolean) -> Unit =
+            { _, _, _, _ -> }
+    ): List<String> = withContext(Dispatchers.IO) {
+        val pool = domains
+        if (pool.isEmpty()) return@withContext emptyList()
+        val working = Collections.synchronizedList(mutableListOf<String>())
+        val gate = Semaphore(PROBE_PARALLELISM)
+        coroutineScope {
+            pool.mapIndexed { index, domain ->
+                async {
+                    gate.withPermit {
+                        val ok = probeDomain(domain, dc)
+                        if (ok) working.add(domain)
+                        onProgress(index + 1, pool.size, domain, ok)
+                    }
+                }
+            }.awaitAll()
+        }
+        working.toList()
+    }
+
+    /**
+     * Keep only the domains that answered the availability check.
+     * The hourly refresh keeps this set, so a dead domain stays out.
+     */
+    fun applyWorkingDomains(working: List<String>) {
+        if (working.isEmpty()) {
+            Log.w(TAG, "Availability check found no working domain, keeping the current pool")
+            return
+        }
+        verified = working.toSet()
+        domains = working
+        health.keys.retainAll(verified)
+        pinned.values.retainAll(verified)
+        Log.i(TAG, "CF proxy pool narrowed to ${working.size} working domain(s)")
+    }
 
     // ---- Domain health tracking -------------------------------------------
     // A domain whose connections keep dying shortly after being established is
@@ -174,11 +278,20 @@ object CfDomains {
             .filter { isValidDomain(it) }
             .distinct()
             .toList()
-        if (decoded.size >= MIN_VALID_DOMAINS) {
-            domains = decoded
-            health.keys.retainAll(decoded.toSet())
-            Log.i(TAG, "CF proxy domain pool updated from GitHub (${decoded.size} domains)")
-            return decoded.size
+        // Keep the domains verified by the availability check: a domain that
+        // did not answer must not silently come back into the rotation.
+        val filtered = if (verified.isNotEmpty()) {
+            val kept = decoded.filter { it in verified }
+            if (kept.size >= MIN_VALID_DOMAINS) kept else decoded
+        } else {
+            decoded
+        }
+        if (filtered.size >= MIN_VALID_DOMAINS) {
+            domains = filtered
+            health.keys.retainAll(filtered.toSet())
+            pinned.values.retainAll(filtered.toSet())
+            Log.i(TAG, "CF proxy domain pool updated from GitHub (${filtered.size} domains)")
+            return filtered.size
         }
         Log.w(TAG, "Ignoring fetched CF proxy domains due to low-quality payload (valid=${decoded.size}); keeping current pool")
         return 0

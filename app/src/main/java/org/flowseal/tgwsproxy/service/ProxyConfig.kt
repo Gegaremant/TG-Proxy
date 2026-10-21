@@ -53,6 +53,14 @@ class ProxyConfig(context: Context) {
         get() = prefs.getBoolean("auto_check", true)
         set(value) = prefs.edit().putBoolean("auto_check", value).apply()
 
+    /**
+     * Auto-connect: start the proxy automatically when the app is opened.
+     * Off by default — the user is asked on the very first launch.
+     */
+    var autoConnect: Boolean
+        get() = prefs.getBoolean("auto_connect", false)
+        set(value) = prefs.edit().putBoolean("auto_connect", value).apply()
+
     var secret: String
         get() {
             var s = prefs.getString("secret", null)

@@ -28,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
@@ -53,6 +54,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.flowseal.tgwsproxy.R
+import org.flowseal.tgwsproxy.proxy.CfDomains
 import org.flowseal.tgwsproxy.proxy.Stats
 import org.flowseal.tgwsproxy.service.ProxyConfig
 import org.flowseal.tgwsproxy.service.ProxyService
@@ -108,6 +110,32 @@ suspend fun runSniAutoConfig(config: ProxyConfig): String = withContext(Dispatch
         } catch (_: Exception) {}
     }
     best
+}
+
+/**
+ * Full auto configuration:
+ *  - pick the fastest fake-TLS SNI domain (latency probe),
+ *  - check which CF-proxy domains actually answer and drop the dead ones.
+ *
+ * Roughly half of the public CF domains are unreachable at any moment, and a
+ * dead one costs a full connect timeout on every new client connection. The
+ * desktop app does the same check in its settings ("Автонастройка").
+ */
+suspend fun runAutoConfig(
+    config: ProxyConfig,
+    onProgress: (String) -> Unit
+): String = withContext(Dispatchers.IO) {
+    onProgress("SNI: probing...")
+    val bestSni = runSniAutoConfig(config)
+    config.fakeTlsDomain = bestSni
+
+    val working = CfDomains.filterWorkingDomains { done, total, domain, ok ->
+        onProgress("$done/$total $domain: ${if (ok) "ok" else "fail"}")
+    }
+    if (working.isNotEmpty()) {
+        CfDomains.applyWorkingDomains(working)
+    }
+    "SNI=$bestSni, CF=${working.size}/${CfDomains.domains.size}"
 }
 
 class MainActivity : ComponentActivity() {
@@ -284,6 +312,7 @@ fun MainScreen(
     var isRunning by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(listOf<String>()) }
     var showFirstLaunchPrompt by remember { mutableStateOf(config.isFirstLaunch) }
+    var autoConnectTriggered by remember { mutableStateOf(false) }
     
     val scope = rememberCoroutineScope()
     var savedToast by remember { mutableStateOf<String?>(null) }
@@ -324,6 +353,14 @@ fun MainScreen(
         while (true) {
             val service = getService()
             isRunning = service?.isProxyRunning == true
+            // Автоподключение: при открытии приложения прокси стартует сам
+            // (по умолчанию выключено, включается на первом запуске).
+            if (config.autoConnect && !autoConnectTriggered && bound.value && service != null) {
+                autoConnectTriggered = true
+                if (!isRunning) {
+                    onStart()
+                }
+            }
             if (isRunning) {
                 val s = service?.stats
                 if (s != null) {
@@ -344,10 +381,10 @@ fun MainScreen(
                 config.isFirstLaunch = false
             },
             title = { Text(stringResource(R.string.app_name)) },
-            text = { Text(stringResource(R.string.start_on_boot_prompt)) },
+            text = { Text(stringResource(R.string.auto_connect_prompt)) },
             confirmButton = {
                 TextButton(onClick = {
-                    config.autostart = true
+                    config.autoConnect = true
                     showFirstLaunchPrompt = false
                     config.isFirstLaunch = false
                 }) {
@@ -356,7 +393,7 @@ fun MainScreen(
             },
             dismissButton = {
                 TextButton(onClick = {
-                    config.autostart = false
+                    config.autoConnect = false
                     showFirstLaunchPrompt = false
                     config.isFirstLaunch = false
                 }) {
@@ -433,6 +470,7 @@ fun MainScreen(
 
             var isStarting by remember { mutableStateOf(false) }
             var isAutoConfiguring by remember { mutableStateOf(false) }
+            var autoConfigStatus by remember { mutableStateOf("") }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -483,82 +521,102 @@ fun MainScreen(
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.stop_proxy))
                     }
-                }
-            }
-
-            // Standalone auto config (moved here from settings): pick the best
-            // fake-TLS SNI domain without starting the proxy.
-            if (!isRunning) {
-                OutlinedButton(
-                    onClick = {
-                        if (isAutoConfiguring) return@OutlinedButton
-                        isAutoConfiguring = true
-                        scope.launch {
-                            val bestSni = runSniAutoConfig(config)
-                            config.fakeTlsDomain = bestSni
-                            isAutoConfiguring = false
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.auto_config_done) + ": $bestSni",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (isAutoConfiguring) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.auto_config_running))
-                    } else {
-                        Text(stringResource(R.string.auto_config))
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = onRestart,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Refresh, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.reconnect))
                     }
                 }
             }
 
-            if (isRunning) {
-                val clipboardManager = LocalClipboardManager.current
-                val generateProxyLink = {
-                    val serverIp = "127.0.0.1"
-                    val base = "tg://proxy?server=$serverIp&port=${config.port}&secret="
-                    val secretPart = if (config.fakeTlsDomain.isNotEmpty()) {
-                        "ee" + config.secret + config.fakeTlsDomain.toByteArray().joinToString("") { "%02x".format(it) }
-                    } else {
-                        "dd" + config.secret
-                    }
-                    base + secretPart
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        val url = generateProxyLink()
-                        clipboardManager.setText(AnnotatedString(url))
-                        Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.copy_link))
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        try {
-                            val uri = android.net.Uri.parse(generateProxyLink())
-                            val intent = Intent(Intent.ACTION_VIEW, uri)
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Telegram not installed", Toast.LENGTH_SHORT).show()
+            // --- Автонастройка: доступна во всех режимах (работает и при
+            // запущенном прокси — переключает эндпоинты на лету).
+            OutlinedButton(
+                onClick = {
+                    if (isAutoConfiguring) return@OutlinedButton
+                    isAutoConfiguring = true
+                    autoConfigStatus = context.getString(R.string.auto_config_running)
+                    scope.launch {
+                        val result = runAutoConfig(config) { status ->
+                            autoConfigStatus = status
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Open in Telegram")
+                        autoConfigStatus = ""
+                        isAutoConfiguring = false
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.auto_config_done) + ": " + result,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isAutoConfiguring) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.auto_config_running))
+                } else {
+                    Text(stringResource(R.string.auto_config))
                 }
+            }
+
+            if (autoConfigStatus.isNotEmpty()) {
+                Text(
+                    autoConfigStatus,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // --- Ссылка на прокси: доступна во всех режимах.
+            val clipboardManager = LocalClipboardManager.current
+            val generateProxyLink = {
+                val serverIp = "127.0.0.1"
+                // The real listening port (the configured one can be busy and
+                // the server then takes the next free one).
+                val actualPort = getService()?.listenPort ?: config.port
+                val base = "tg://proxy?server=$serverIp&port=$actualPort&secret="
+                val secretPart = if (config.fakeTlsDomain.isNotEmpty()) {
+                    "ee" + config.secret + config.fakeTlsDomain.toByteArray().joinToString("") { "%02x".format(it) }
+                } else {
+                    "dd" + config.secret
+                }
+                base + secretPart
+            }
+
+            OutlinedButton(
+                onClick = {
+                    val url = generateProxyLink()
+                    clipboardManager.setText(AnnotatedString(url))
+                    Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(stringResource(R.string.copy_link))
+            }
+
+            OutlinedButton(
+                onClick = {
+                    try {
+                        val uri = android.net.Uri.parse(generateProxyLink())
+                        val intent = Intent(Intent.ACTION_VIEW, uri)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Telegram not installed", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.open_in_telegram))
             }
 
             if (showSettings) {
@@ -698,6 +756,8 @@ fun SettingsPanel(
     var port by remember { mutableStateOf(config.port.toString()) }
     var showLogs by remember { mutableStateOf(config.showLogs) }
     var autoCheck by remember { mutableStateOf(config.autoCheck) }
+    var autoConnect by remember { mutableStateOf(config.autoConnect) }
+    var autostart by remember { mutableStateOf(config.autostart) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -721,6 +781,32 @@ fun SettingsPanel(
                 Switch(
                     checked = autoCheck,
                     onCheckedChange = { autoCheck = it }
+                )
+            }
+
+            // Auto-connect: start the proxy when the app is opened.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(stringResource(R.string.auto_connect))
+                Switch(
+                    checked = autoConnect,
+                    onCheckedChange = { autoConnect = it }
+                )
+            }
+
+            // Start the proxy on device boot.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(stringResource(R.string.autostart))
+                Switch(
+                    checked = autostart,
+                    onCheckedChange = { autostart = it }
                 )
             }
 
@@ -849,6 +935,8 @@ fun SettingsPanel(
                     config.secret = secret
                     config.fakeTlsDomain = fakeTlsDomain
                     config.autoCheck = autoCheck
+                    config.autoConnect = autoConnect
+                    config.autostart = autostart
                     config.useCfProxy = useCfProxy
                     config.cfProxyDomain = cfProxyDomain
                     config.cfWorkerDomain = cfWorkerDomain

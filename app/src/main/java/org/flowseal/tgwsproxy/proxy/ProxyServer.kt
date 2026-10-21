@@ -36,6 +36,15 @@ class ProxyServer(
     private val running = AtomicBoolean(false)
     private var serverSocket: ServerSocket? = null
     private var executor: ExecutorService? = null
+
+    /**
+     * Port the proxy is actually listening on. It differs from the configured
+     * one when the requested port is busy (the server then tries the next
+     * ones) - the MTProto link must use the real port.
+     */
+    @Volatile
+    var boundPort: Int = port
+        private set
     private val wsPool = WsPool(poolSize, onLog = { msg -> log(msg) }, socks5Proxy = upstreamProxy)
     val stats: Stats get() = wsPool.stats
 
@@ -48,6 +57,10 @@ class ProxyServer(
     private val EARLY_CLOSE_MS = 15_000L
     private val EARLY_CLOSE_MIN_BYTES = 100L * 1024
     private val HEALTHY_LIFETIME_MS = 60_000L
+
+    // Connect timeout for the CF-proxy pool: half of the public domains are
+    // unreachable, so a failed attempt must not block the client for 10s.
+    private val CF_CONNECT_TIMEOUT_MS = 5000
 
     private val bufSize = bufKb * 1024
     
@@ -117,6 +130,7 @@ class ProxyServer(
                             bind(InetSocketAddress(host, currentPort))
                         }
                         bindSuccess = true
+                        boundPort = currentPort
                         val bound = serverSocket!!.localSocketAddress
                         log("MTProto WS Bridge Proxy binding $host:$currentPort (bound=$bound, loopbackOnly=${InetAddress.getByName(host).isLoopbackAddress})")
                         if (fakeTlsDomain.isNotEmpty()) {
@@ -332,21 +346,27 @@ class ProxyServer(
                     log("[$label] DC$dc$mediaTag -> CF wss://$cfHost/apiws")
                     val cfBase = cfHost.substringAfter('.', cfHost)
                     try {
-                        ws = RawWebSocket.connect(cfHost, cfHost, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                        // Короткий таймаут: половина публичных доменов мертва,
+                        // и каждая попытка не должна стоить 10 секунд.
+                        ws = RawWebSocket.connect(cfHost, cfHost, timeoutMs = CF_CONNECT_TIMEOUT_MS, socks5Proxy = upstreamProxy)
                         cfBaseUsed = cfBase
                         allRedirects = false
                         stats.connectionsCfProxy.incrementAndGet()
+                        CfDomains.pin(dc, cfBase)
+                        CfDomains.reportSuccess(cfBase)
                         break
                     } catch (e: WsHandshakeError) {
                         stats.wsErrors.incrementAndGet()
                         if (!e.isRedirect) allRedirects = false
                         CfDomains.reportFailure(cfBase)
+                        CfDomains.unpin(dc, cfBase)
                         log("[$label] DC$dc$mediaTag CF handshake failed: ${e.statusLine}")
                     } catch (e: Exception) {
                         stats.wsErrors.incrementAndGet()
                         allRedirects = false
                         CfDomains.reportFailure(cfBase)
-                        log("[$label] DC$dc$mediaTag CF connect failed: $e")
+                        CfDomains.unpin(dc, cfBase)
+                        log("[$label] DC$dc$mediaTag CF connect failed: ${e.javaClass.simpleName}: ${e.message}")
                     }
                 }
             }
@@ -492,6 +512,16 @@ class ProxyServer(
                     downBytes += data.size
                     
                     val plain = ctx.tgDec.update(data)
+                    // The DC answers a bad request with an 8-byte MTProto error
+                    // ([length][error code]) - log it, it is the only hint about
+                    // *why* the peer rejected the session.
+                    if (plain.size == 8) {
+                        val errLen = ByteBuffer.wrap(plain, 0, 4).order(ByteOrder.LITTLE_ENDIAN).int
+                        val errCode = ByteBuffer.wrap(plain, 4, 4).order(ByteOrder.LITTLE_ENDIAN).int
+                        if (errLen == 8 && errCode < 0) {
+                            log("[$label] $dcTag MTProto error from DC: code=$errCode")
+                        }
+                    }
                     val enc = ctx.cltEnc.update(plain)
 
                     clientOut.write(enc)
@@ -511,7 +541,8 @@ class ProxyServer(
 
         val elapsedMs = System.currentTimeMillis() - startTime
         val elapsed = elapsedMs / 1000.0
-        log("[$label] $dcTag WS closed: ^${Stats.humanBytes(upBytes)} v${Stats.humanBytes(downBytes)} in %.1fs".format(elapsed))
+        val closeInfo = ws.closeCode?.let { " (ws close $it${ws.closeReason?.let { r -> ": $r" } ?: ""})" } ?: ""
+        log("[$label] $dcTag WS closed: ^${Stats.humanBytes(upBytes)} v${Stats.humanBytes(downBytes)} in %.1fs%s".format(elapsed, closeInfo))
 
         // CF endpoint health: a connection that dies within seconds while it
         // was actively transferring means the endpoint is bad -> failure.

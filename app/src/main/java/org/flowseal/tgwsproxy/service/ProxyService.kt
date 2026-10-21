@@ -52,6 +52,9 @@ class ProxyService : Service() {
     val stats: Stats? get() = proxyServer?.stats
     val isProxyRunning: Boolean get() = proxyServer?.isRunning == true
 
+    /** The port the proxy really listens on (may differ if the port was busy). */
+    val listenPort: Int get() = proxyServer?.boundPort ?: ProxyConfig(this).port
+
     fun getRecentLogs(): List<String> = synchronized(logBuffer) { logBuffer.toList() }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -135,6 +138,25 @@ class ProxyService : Service() {
         }
         addLog("Clients connect via 127.0.0.1:${config.port}")
         updateNotification("Running on localhost:${config.port}")
+
+        // Автопроверка: в фоне выкидываем из пула мёртвые CF-домены.
+        // Половина публичных доменов не отвечает, и каждый мёртвый домен
+        // стоит полного таймаута подключения на каждом новом клиенте.
+        if (config.autoCheck) {
+            Thread({
+                try {
+                    val working = kotlinx.coroutines.runBlocking {
+                        CfDomains.filterWorkingDomains()
+                    }
+                    if (working.isNotEmpty()) {
+                        CfDomains.applyWorkingDomains(working)
+                        addLog("Auto check: ${working.size}/${CfDomains.domains.size} CF domains are alive")
+                    }
+                } catch (e: Exception) {
+                    addLog("Auto check failed: ${e.message}")
+                }
+            }, "cf-availability-check").apply { isDaemon = true; start() }
+        }
     }
 
     fun stopProxy() {

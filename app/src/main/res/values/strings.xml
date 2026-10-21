@@ -22,9 +22,14 @@
     <string name="logs_saved">Logs saved to %1$s</string>
     <string name="logs_save_failed">Failed to save logs</string>
     <string name="logs_empty">No logs to save</string>
-    <string name="auto_config_running">Testing SNI domains...</string>
+    <string name="auto_config_running">Auto config: testing domains...</string>
     <string name="auto_config_done">Auto config complete!</string>
     <string name="auto_check">Auto connection check on start</string>
+    <string name="auto_connect">Auto-connect</string>
+    <string name="autostart">Start proxy on device boot</string>
+    <string name="auto_connect_prompt">Enable auto-connect? The proxy will start automatically when the app is opened.</string>
+    <string name="reconnect">Reconnect</string>
+    <string name="open_in_telegram">Open in Telegram app</string>
     <string name="notification_restart">Restart</string>
     <string name="notification_disconnect">Stop</string>
     <string name="battery_optimization_disable">Disable battery optimization</string>

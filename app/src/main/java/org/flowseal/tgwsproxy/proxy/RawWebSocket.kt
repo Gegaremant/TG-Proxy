@@ -25,6 +25,16 @@ class RawWebSocket private constructor(
     @Volatile
     private var closed = false
 
+    /** WebSocket close code received from the peer (null if not closed by peer). */
+    @Volatile
+    var closeCode: Int? = null
+        private set
+
+    /** Human readable close reason, if the peer sent one. */
+    @Volatile
+    var closeReason: String? = null
+        private set
+
     companion object {
         private const val TAG = "RawWebSocket"
 
@@ -234,6 +244,13 @@ class RawWebSocket private constructor(
             when (opcode) {
                 OP_CLOSE -> {
                     closed = true
+                    if (payload.size >= 2) {
+                        closeCode = ((payload[0].toInt() and 0xFF) shl 8) or
+                                (payload[1].toInt() and 0xFF)
+                        if (payload.size > 2) {
+                            closeReason = String(payload, 2, payload.size - 2, Charsets.UTF_8)
+                        }
+                    }
                     try {
                         val reply = buildFrame(
                             OP_CLOSE,

@@ -179,9 +179,8 @@ object TelegramDC {
         // CF-proxy domains resolve to Cloudflare IPs via a single host regardless
         // of media/non-media (the reference proxy uses "kws{dc}.{domain}" with no
         // "-1" suffix for CF). The "kws{dc}-1.{domain}" names have no DNS record.
-        // Order comes from healthyDomains(): fresh domains first (shuffled),
-        // cooled-down ones last, so we stop hammering endpoints that keep
-        // dropping connections.
-        return CfDomains.healthyDomains().map { "kws${resolvedDc}.$it" }
+        // Order comes from orderedDomains(): the domain that last worked for
+        // this DC goes first, then the rest of the healthy ones.
+        return CfDomains.orderedDomains(resolvedDc).map { "kws${resolvedDc}.$it" }
     }
 }
