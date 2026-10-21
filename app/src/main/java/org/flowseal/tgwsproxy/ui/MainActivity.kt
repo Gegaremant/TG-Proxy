@@ -50,6 +50,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -94,22 +97,26 @@ fun updateLocale(context: Context, language: String): Context {
  * button and the optional auto-check performed on Start.
  */
 suspend fun runSniAutoConfig(config: ProxyConfig): String = withContext(Dispatchers.IO) {
-    var best = config.fakeTlsDomain.ifBlank { "sberbank.ru" }
-    var bestTime = Long.MAX_VALUE
-    for (sni in DEFAULT_SNI_LIST.shuffled().take(10)) {
-        try {
-            val start = System.currentTimeMillis()
-            val socket = Socket()
-            socket.connect(InetSocketAddress(sni, 443), 1500)
-            socket.close()
-            val time = System.currentTimeMillis() - start
-            if (time < bestTime) {
-                bestTime = time
-                best = sni
+    val candidates = DEFAULT_SNI_LIST.shuffled().take(10)
+    // Probe in parallel: sequentially it took up to 1.5s per dead domain.
+    val results = coroutineScope {
+        candidates.map { sni ->
+            async {
+                try {
+                    val start = System.currentTimeMillis()
+                    val socket = Socket()
+                    socket.connect(InetSocketAddress(sni, 443), 1500)
+                    socket.close()
+                    val time = System.currentTimeMillis() - start
+                    sni to time
+                } catch (_: Exception) {
+                    null
+                }
             }
-        } catch (_: Exception) {}
+        }.awaitAll().filterNotNull()
     }
-    best
+    val fastest = results.minByOrNull { it.second }
+    fastest?.first ?: config.fakeTlsDomain.ifBlank { "sberbank.ru" }
 }
 
 /**
