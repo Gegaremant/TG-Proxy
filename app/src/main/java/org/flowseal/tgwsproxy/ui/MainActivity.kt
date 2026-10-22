@@ -1,6 +1,9 @@
 package org.flowseal.tgwsproxy.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.app.ActivityManager
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -26,6 +29,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -65,6 +70,8 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.Locale
 import android.content.res.Configuration
+import android.net.ConnectivityManager
+import android.os.Process
 
 val DEFAULT_SNI_LIST = listOf(
     "stats.vk-portal.net", "sun6-21.userapi.com", "r3.mail.ru", "api.vk.com", "m.vk.com",
@@ -298,6 +305,159 @@ fun TgWsProxyTheme(themeMode: String = "system", content: @Composable () -> Unit
 
 // --- Main Screen ---
 
+/** Один пункт чек-листа готовности: что проверяем, статус и кнопка «Включить». */
+data class ReadinessItem(
+    val title: String,
+    val done: Boolean,
+    val action: () -> Unit
+)
+
+/**
+ * Проверка готовности к стабильной работе. Вызывается на каждом запуске
+ * приложения и далее по кругу, пока пользователь не включит всё перечисленное:
+ * энергосбережение, сеть без ограничений, автозапуск, автоподключение,
+ * работа в фоне, показ уведомлений.
+ */
+@SuppressLint("NewApi")
+fun computeReadinessItems(
+    context: Context,
+    config: ProxyConfig,
+    requestNotifications: () -> Unit
+): List<ReadinessItem> {
+    val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    fun openSettings(action: String) {
+        try {
+            context.startActivity(Intent(action).apply {
+                data = Uri.parse("package:${context.packageName}")
+            })
+        } catch (_: Exception) {}
+    }
+
+    // Энергосбережение: приложение должно быть в списке исключений оптимизации.
+    val batteryOk = pm.isIgnoringBatteryOptimizations(context.packageName)
+
+    // Сеть без ограничений: экономия трафика либо выключена системно,
+    // либо для приложения есть исключение.
+    val dataSaverOk = try {
+        cm.getRestrictBackgroundStatus() != ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
+    } catch (_: Throwable) {
+        // Метод есть не на всех версиях Android — не блокируем запуск.
+        true
+    }
+
+    // Автозапуск и автоподключение — наши собственные переключатели.
+    val autostartOk = config.autostart
+    val autoConnectOk = config.autoConnect
+
+    // Работа в фоне: ограничение фона (Battery → Unrestricted), API 28+.
+    val backgroundOk = Build.VERSION.SDK_INT < 28 || !am.isBackgroundRestricted()
+
+    // Уведомления нужны постоянной службы, чтобы её не убивала система.
+    val notificationsOk = nm.areNotificationsEnabled()
+
+    return listOf(
+        ReadinessItem(context.getString(R.string.readiness_battery), batteryOk) {
+            try {
+                val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(i)
+            } catch (_: Exception) {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                } catch (_: Exception) {}
+            }
+        },
+        ReadinessItem(context.getString(R.string.readiness_data_saver), dataSaverOk) {
+            // ACTION_DATA_SAVER_SETTINGS в SDK нет — открываем экран "Без
+            // ограничений" с пакетом приложения, иначе настройки сети.
+            try {
+                val i = Intent(Settings.ACTION_IGNORE_BACKGROUND_DATA_RESTRICTIONS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(i)
+            } catch (_: Exception) {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+                } catch (_: Exception) {}
+            }
+        },
+        ReadinessItem(context.getString(R.string.readiness_autostart), autostartOk) {
+            config.autostart = true
+        },
+        ReadinessItem(context.getString(R.string.readiness_autoconnect), autoConnectOk) {
+            config.autoConnect = true
+        },
+        ReadinessItem(context.getString(R.string.readiness_background), backgroundOk) {
+            openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        },
+        ReadinessItem(context.getString(R.string.readiness_notifications), notificationsOk) {
+            if (Build.VERSION.SDK_INT >= 33) {
+                requestNotifications()
+            } else {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    })
+                } catch (_: Exception) {}
+            }
+        }
+    )
+}
+
+/** Чек-лист готовности: галочки по каждому пункту + кнопка для недостающих. */
+@Composable
+fun ReadinessCard(items: List<ReadinessItem>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                stringResource(R.string.readiness_title),
+                style = MaterialTheme.typography.titleSmall
+            )
+            items.forEach { item ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        if (item.done) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                        null,
+                        tint = if (item.done) Color(0xFF43A047) else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        item.title,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (!item.done) {
+                        TextButton(
+                            onClick = item.action,
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            Text(
+                                stringResource(R.string.readiness_enable),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -318,8 +478,14 @@ fun MainScreen(
     var statsText by remember { mutableStateOf("") }
     var isRunning by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(listOf<String>()) }
-    var showFirstLaunchPrompt by remember { mutableStateOf(config.isFirstLaunch) }
     var autoConnectTriggered by remember { mutableStateOf(false) }
+    var readinessItems by remember { mutableStateOf(listOf<ReadinessItem>()) }
+    var showReadinessPrompt by remember { mutableStateOf(false) }
+    var readinessPromptSeen by remember { mutableStateOf(false) }
+
+    val requestNotificationsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
     
     val scope = rememberCoroutineScope()
     var savedToast by remember { mutableStateOf<String?>(null) }
@@ -376,38 +542,58 @@ fun MainScreen(
                 logs = service?.getRecentLogs() ?: emptyList()
             } else {
                 statsText = ""
+                // Проверка готовности: на каждый запуск и далее по кругу,
+                // пока пользователь не включит всё перечисленное.
+                readinessItems = computeReadinessItems(context, config, {
+                    requestNotificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                })
+                if (!readinessPromptSeen) {
+                    readinessPromptSeen = true
+                    if (readinessItems.any { !it.done }) {
+                        showReadinessPrompt = true
+                    }
+                }
             }
             delay(1000)
         }
     }
 
-    if (showFirstLaunchPrompt) {
-        AlertDialog(
-            onDismissRequest = { 
-                showFirstLaunchPrompt = false
-                config.isFirstLaunch = false
-            },
-            title = { Text(stringResource(R.string.app_name)) },
-            text = { Text(stringResource(R.string.auto_connect_prompt)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    config.autoConnect = true
-                    showFirstLaunchPrompt = false
-                    config.isFirstLaunch = false
-                }) {
-                    Text(stringResource(R.string.yes))
+    if (showReadinessPrompt) {
+        val missing = readinessItems.filter { !it.done }
+        if (missing.isNotEmpty()) {
+            AlertDialog(
+                onDismissRequest = { showReadinessPrompt = false },
+                title = { Text(stringResource(R.string.readiness_missing_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            stringResource(R.string.readiness_missing_text),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        missing.forEach { item ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Cancel,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(item.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                TextButton(onClick = item.action) {
+                                    Text(stringResource(R.string.readiness_enable))
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showReadinessPrompt = false }) {
+                        Text(stringResource(R.string.readiness_later))
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    config.autoConnect = false
-                    showFirstLaunchPrompt = false
-                    config.isFirstLaunch = false
-                }) {
-                    Text(stringResource(R.string.no))
-                }
-            }
-        )
+            )
+        }
     }
 
     Scaffold(
@@ -454,26 +640,6 @@ fun MainScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             StatusCard(isRunning, statsText, config)
-
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            val batteryOptimized = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-                    !powerManager.isIgnoringBatteryOptimizations(context.packageName)
-            if (batteryOptimized) {
-                OutlinedButton(
-                    onClick = {
-                        try {
-                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                            intent.data = Uri.parse("package:${context.packageName}")
-                            context.startActivity(intent)
-                        } catch (_: Exception) {}
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Warning, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.battery_optimization_disable))
-                }
-            }
 
             var isStarting by remember { mutableStateOf(false) }
             var isAutoConfiguring by remember { mutableStateOf(false) }
@@ -540,6 +706,14 @@ fun MainScreen(
                 }
             }
 
+            // Пока прокси не запущен — показываем только чек-лист готовности.
+            if (!isRunning) {
+                ReadinessCard(readinessItems)
+            }
+
+            // Кнопки автонастройки и ссылки — только при запущенном прокси
+            // (пока соединения нет, их показывать не нужно).
+            if (isRunning) {
             // --- Автонастройка: доступна во всех режимах (работает и при
             // запущенном прокси — переключает эндпоинты на лету).
             OutlinedButton(
@@ -625,6 +799,7 @@ fun MainScreen(
             ) {
                 Text(stringResource(R.string.open_in_telegram))
             }
+            } // if (isRunning)
 
             if (showSettings) {
 

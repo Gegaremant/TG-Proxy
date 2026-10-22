@@ -34,6 +34,17 @@
     <string name="notification_disconnect">Остановить</string>
     <string name="battery_optimization_disable">Отключить оптимизацию батареи</string>
     <string name="battery_optimization_off">Оптимизация батареи уже отключена</string>
-    <string name="app_version">Версия 1.2.3</string>
+    <string name="readiness_title">Готовность к запуску</string>
+    <string name="readiness_battery">Энергосбережение отключено для приложения</string>
+    <string name="readiness_data_saver">Сеть без ограничений (исключение экономии трафика)</string>
+    <string name="readiness_autostart">Автозапуск при включении телефона</string>
+    <string name="readiness_autoconnect">Автоподключение при открытии приложения</string>
+    <string name="readiness_background">Работа в фоне разрешена</string>
+    <string name="readiness_notifications">Показ уведомлений разрешён</string>
+    <string name="readiness_enable">Включить</string>
+    <string name="readiness_missing_title">Настройте для стабильной работы</string>
+    <string name="readiness_missing_text">Не все условия стабильной работы выполнены — включи недостающие:</string>
+    <string name="readiness_later">Позже</string>
+    <string name="app_version">Версия 1.2.4</string>
 </resources>
 

@@ -34,5 +34,16 @@
     <string name="notification_disconnect">Stop</string>
     <string name="battery_optimization_disable">Disable battery optimization</string>
     <string name="battery_optimization_off">Battery optimization is already disabled</string>
-    <string name="app_version">Version 1.2.3</string>
+    <string name="readiness_title">Ready to run</string>
+    <string name="readiness_battery">Battery optimization disabled for the app</string>
+    <string name="readiness_data_saver">Unrestricted network (data saver exemption)</string>
+    <string name="readiness_autostart">Start on boot</string>
+    <string name="readiness_autoconnect">Auto-connect on app open</string>
+    <string name="readiness_background">Background work allowed</string>
+    <string name="readiness_notifications">Notifications allowed</string>
+    <string name="readiness_enable">Enable</string>
+    <string name="readiness_missing_title">Set up for reliable work</string>
+    <string name="readiness_missing_text">Some prerequisites are not met yet — enable the missing ones:</string>
+    <string name="readiness_later">Later</string>
+    <string name="app_version">Version 1.2.4</string>
 </resources>
