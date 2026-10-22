@@ -96,8 +96,8 @@ app = BUNDLE(
     info_plist={
         'CFBundleName': 'TG FREE with 🖤 From KatYa && Gegaremant',
         'CFBundleDisplayName': 'TG FREE with 🖤 From KatYa && Gegaremant',
-        'CFBundleShortVersionString': '1.2.5',
-        'CFBundleVersion': '1.2.5',
+        'CFBundleShortVersionString': '1.2.6',
+        'CFBundleVersion': '1.2.6',
         'LSMinimumSystemVersion': '10.15',
         'LSUIElement': True,
         'NSHighResolutionCapable': True,

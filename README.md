@@ -5,9 +5,9 @@
 [English Version / Английская версия](README_en.md)
 
 ### ⬇️ Скачать для своей ОС
-[![Windows](https://img.shields.io/badge/Windows-1.2.3-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.3-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.3-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.3-MAC.dmg)
+[![Windows](https://img.shields.io/badge/Windows-1.2.6-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.6-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.6-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.6-MAC.dmg)
 
-[![Linux](https://img.shields.io/badge/Linux-1.2.3-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.3-Linux) [![Android](https://img.shields.io/badge/Android-1.2.3-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.3-Android.apk)
+[![Linux](https://img.shields.io/badge/Linux-1.2.6-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.6-Linux) [![Android](https://img.shields.io/badge/Android-1.2.6-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.6-Android.apk)
 
 **TG-Proxy** — это единое кроссплатформенное приложение для обхода блокировок Telegram на основе MTProto WebSocket Proxy с поддержкой FakeTLS. Оно объединяет в себе версии для **Android**, **Windows**, **macOS** и **Linux** под одним капотом, предлагая единый стильный интерфейс и одинаковый набор функций на всех платформах.
 
