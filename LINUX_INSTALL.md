@@ -1,18 +1,18 @@
 # Установка и запуск TG Proxy на Linux
 
-`install.sh` — универсальный установщик: **сам скачивает последний релиз** с GitHub,
+`install_TG-Proxy.sh` — универсальный установщик: **сам скачивает последний релиз** с GitHub,
 определяет типы окружения (root/пользователь, X11/Wayland) и ставит всё необходимое.
 
 ## 1. Установка (быстро)
 
-Скачайте со страницы релизов **`install.sh`** (или вместе с ним `TG-Proxy-1.x.x-Linux`)
+Скачайте со страницы релизов **`install_TG-Proxy.sh`** (или вместе с ним `TG-Proxy-1.x.x-Linux`)
 и выполните:
 
 ```bash
-chmod +x install.sh
-./install.sh            # сам скачает последний релиз и установит (можно без sudo)
+chmod +x install_TG-Proxy.sh
+./install_TG-Proxy.sh            # сам скачает последний релиз и установит (можно без sudo)
 # или
-sudo ./install.sh       # установит системно в /opt/tg-proxy
+sudo ./install_TG-Proxy.sh       # установит системно в /opt/tg-proxy
 ```
 
 Скрипт:
@@ -27,11 +27,11 @@ sudo ./install.sh       # установит системно в /opt/tg-proxy
 Другие режимы:
 
 ```bash
-./install.sh run                                  # скачать и сразу запустить (без установки)
-./install.sh install ./TG-Proxy-1.2.4-Linux       # установить уже скачанный файл
-./install.sh uninstall                            # удалить установленную копию
-sudo ./install.sh --service                       # + headless systemd-сервис (нужен root)
-./install.sh --tg                                 # + установить/обновить Telegram Desktop
+./install_TG-Proxy.sh run                                  # скачать и сразу запустить (без установки)
+./install_TG-Proxy.sh install ./TG-Proxy-1.2.4-Linux       # установить уже скачанный файл
+./install_TG-Proxy.sh uninstall                            # удалить установленную копию
+sudo ./install_TG-Proxy.sh --service                       # + headless systemd-сервис (нужен root)
+./install_TG-Proxy.sh --tg                                 # + установить/обновить Telegram Desktop
 ```
 
 ## 2. Ручная сборка (необязательно)
@@ -111,7 +111,7 @@ cp packaging/tg-proxy-autostart.desktop ~/.config/autostart/
 ищется рядом со скриптом или в `dist/`):
 
 ```bash
-sudo ./install.sh --service
+sudo ./install_TG-Proxy.sh --service
 ```
 
 При ручной установке создайте юнит и заполните секретный ключ
@@ -141,9 +141,9 @@ journalctl -u tg-proxy -f              # логи
 ## 6. Удаление
 
 ```bash
-./install.sh uninstall          # если ставили без root (пользовательские файлы)
+./install_TG-Proxy.sh uninstall          # если ставили без root (пользовательские файлы)
 # или, если ставили системно:
-sudo ./install.sh uninstall     # остановит сервис и удалит всё
+sudo ./install_TG-Proxy.sh uninstall     # остановит сервис и удалит всё
 ```
 
 Вручную:

@@ -31,10 +31,10 @@
 Для вашего удобства в проекте настроены GitHub Actions (`.github/workflows`), которые автоматически собирают APK-файл для Android и исполняемые файлы для настольных операционных систем при каждом push'е в ветку `main`.
 
 > 📦 **На странице каждого релиза** помимо бинарников TG-Proxy находятся:
-> установщик `install.sh` и актуальные официальные сборки **Telegram Desktop**
+> установщик `install_TG-Proxy.sh` и актуальные официальные сборки **Telegram Desktop**
 > (`td-setup-linux-x64-*.tar.xz`, `td-setup-win-x64-*.exe`, `td-setup-mac-*.dmg`).
-> А `install.sh` после запуска может **установить/обновить TG Desktop одной
-> командой** (`./install.sh --tg`).
+> А `install_TG-Proxy.sh` после запуска может **установить/обновить TG Desktop одной
+> командой** (`./install_TG-Proxy.sh --tg`).
 
 ### Локальная сборка (Android)
 1. Откройте корень проекта в Android Studio или используйте командную строку.
@@ -48,9 +48,9 @@
 
 ### Установка и запуск на Linux
 Подробная инструкция: см. [LINUX_INSTALL.md](LINUX_INSTALL.md).
-Быстро: скачайте `install.sh` со страницы релизов и запустите `./install.sh` —
+Быстро: скачайте `install_TG-Proxy.sh` со страницы релизов и запустите `./install_TG-Proxy.sh` —
 установщик сам скачает последнюю версию, поставит иконку и пункт меню,
-предложит автозапуск, а с `sudo ./install.sh --service` добавит headless-сервис
+предложит автозапуск, а с `sudo ./install_TG-Proxy.sh --service` добавит headless-сервис
 через systemd.
 
 ### Установка и запуск на macOS

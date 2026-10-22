@@ -18,8 +18,8 @@ from proxy import __version__, get_link_host
 from utils.tray_common import (
     APP_NAME, DEFAULT_CONFIG, FIRST_RUN_MARKER, IS_FROZEN, LOG_FILE,
     acquire_lock, bootstrap, check_ipv6_warning, check_update_async,
-    ctk_run_dialog, ensure_ctk_thread, ensure_dirs, load_config, load_icon,
-    log, quit_ctk, release_lock, restart_proxy,
+    ctk_run_dialog, ensure_ctk_thread, ensure_dirs, load_config,
+    load_icon, log, quit_ctk, release_lock, restart_proxy,
     save_config, start_proxy, stop_proxy, tg_proxy_url,
 )
 from ui.ctk_tray_ui import (
@@ -45,7 +45,19 @@ _update_flow_lock = threading.Lock()
 def _msgbox(kind: str, text: str, title: str, **kw):
     import tkinter as _tk
     from tkinter import messagebox as _mb
+    from utils import tray_common as _tc
 
+    # Голый Tk() здесь недопустим: только ПЕРВЫЙ созданный Tk становится
+    # tkinter._default_root, а раз созданный «не нами» Tk перетягивает все
+    # последующие виджеты (CTkFont, PhotoImage, ...) на чужой интерпретатор,
+    # откуда всё падает с «main thread is not in main loop». Поэтому любой
+    # messagebox сначала поднимает наш скрытый CTk-корень и живёт в нём.
+    if _tc._ctk_root is None:
+        ensure_ctk_thread(ctk, _config.get("appearance", "auto"))
+    if _tc._ctk_root is not None:
+        return getattr(_mb, kind)(title, text, parent=_tc._ctk_root, **kw)
+
+    # fallback: customtkinter недоступен (не должно случаться в обычной сборке)
     root = _tk.Tk()
     root.withdraw()
     try:
@@ -343,6 +355,17 @@ def run_tray() -> None:
     _tray_icon = pystray.Icon(APP_NAME, load_icon(), APP_NAME, menu=_build_menu())
     log.info("pystray backend: %s", type(_tray_icon).__module__)
     log.info("Tray icon running")
+
+    # На X11-бэкенде pystray меню трея не поддерживается в принципе
+    # (_update_menu — заглушка): иконка видна, но клики по ней молчат.
+    # В этом случае при старте открываем окно настроек — все нужные
+    # действия (Telegram/копирование/логи/выход) доступны из него.
+    if "pystray._xorg" in type(_tray_icon).__module__:
+        log.warning(
+            "Tray backend %s has no menu support (plain X11); "
+            "opening the settings window on startup", type(_tray_icon).__module__)
+        threading.Thread(target=_edit_config_dialog, daemon=True).start()
+
     _tray_icon.run()
 
     stop_proxy()

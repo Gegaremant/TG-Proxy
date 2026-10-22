@@ -73,8 +73,20 @@ def create_ctk_toplevel(
     theme: CtkTheme,
     topmost: bool = True,
     after_create: Optional[Callable[[Any], None]] = None,
+    master: Optional[Any] = None,
 ) -> Any:
-    root = ctk.CTkToplevel()
+    if master is None:
+        # ВАЖНО: нельзя оставлять master=None. Побочный Tk (например,
+        # созданный ранним _msgbox) однажды занимает tkinter._default_root,
+        # и тогда наш диалог молча падает из рабочего потока с
+        # «RuntimeError: main thread is not in main loop». Привязываем
+        # окно всегда к нашему скрытому CTk-корню из tray_common.
+        from utils.tray_common import _ctk_root
+        master = _ctk_root
+    if master is not None:
+        root = ctk.CTkToplevel(master=master)
+    else:
+        root = ctk.CTkToplevel()
 
     if sys.platform == "win32":
         def handle_ctrl_shortcut(event: Any) -> Optional[str]:
