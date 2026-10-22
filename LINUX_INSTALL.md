@@ -28,7 +28,7 @@ sudo ./install.sh       # установит системно в /opt/tg-proxy
 
 ```bash
 ./install.sh run                                  # скачать и сразу запустить (без установки)
-./install.sh install ./TG-Proxy-1.2.3-Linux       # установить уже скачанный файл
+./install.sh install ./TG-Proxy-1.2.4-Linux       # установить уже скачанный файл
 ./install.sh uninstall                            # удалить установленную копию
 sudo ./install.sh --service                       # + headless systemd-сервис (нужен root)
 ./install.sh --tg                                 # + установить/обновить Telegram Desktop
@@ -40,7 +40,7 @@ sudo ./install.sh --service                       # + headless systemd-серв�
 
 | Бинарник | Назначение |
 |----------|-----------|
-| `TG-Proxy-1.2.3-Linux` | GUI-версия с трей-иконкой (для рабочего стола) |
+| `TG-Proxy-1.2.4-Linux` | GUI-версия с трей-иконкой (для рабочего стола) |
 | `TG-Proxy-Service` | Headless CLI-версия (для systemd-сервиса, без GUI) |
 
 Подготовка (нужен Python 3.11+ и PyInstaller):

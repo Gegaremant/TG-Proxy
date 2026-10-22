@@ -5,7 +5,7 @@ TG-Proxy собирается в `.dmg`-образ для macOS (Intel и Apple 
 
 ## 1. Установка из готового релиза
 
-1. Скачайте **TG-Proxy-1.2.3-MAC.dmg** со страницы релизов:
+1. Скачайте **TG-Proxy-1.2.4-MAC.dmg** со страницы релизов:
    https://github.com/Gegaremant/TG-Proxy/releases/latest
 2. Откройте скачанный `.dmg` (двойной клик).
 3. Перетащите иконку **TG FREE ...app** в папку «Программы».
@@ -45,7 +45,7 @@ Program), поэтому macOS будет блокировать его при �
 # на машине с macOS
 pip install -e .
 pyinstaller packaging/macos.spec
-packaging/dmg/build_dmg.sh "dist/TG FREE ...app" "TG-Proxy" "dist/TG-Proxy-1.2.3-MAC.dmg"
+packaging/dmg/build_dmg.sh "dist/TG FREE ...app" "TG-Proxy" "dist/TG-Proxy-1.2.4-MAC.dmg"
 ```
 
 Иконка приложения (.icns) генерируется на лету:

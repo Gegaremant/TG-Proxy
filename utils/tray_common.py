@@ -432,6 +432,18 @@ def tg_proxy_url(cfg: dict) -> str:
     port = cfg.get("port", DEFAULT_CONFIG["port"])
     secret = cfg.get("secret", DEFAULT_CONFIG["secret"])
     link_host = get_link_host(host)
+    # С проз-ссылкой надо согласовывать режим прокси: когда включён fake
+    # TLS, клиенты обязаны подключаться по EE-секрету с доменным хвостом,
+    # иначе прокси отвечает HTTP-редиректом и подключение не поднимается.
+    fake_tls = (cfg.get("fake_tls_domain", "") or "").strip()
+    if fake_tls:
+        try:
+            domain_hex = fake_tls.encode('ascii').hex()
+        except UnicodeEncodeError:
+            domain_hex = ""
+        if domain_hex:
+            return (f"tg://proxy?server={link_host}&port={port}"
+                    f"&secret=ee{secret}{domain_hex}")
     return f"tg://proxy?server={link_host}&port={port}&secret=dd{secret}"
 
 

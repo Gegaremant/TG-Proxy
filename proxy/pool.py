@@ -83,6 +83,7 @@ class _WsPool:
             if needed <= 0:
                 return
             connected = 0
+            first_exc: Optional[BaseException] = None
             tasks = [asyncio.create_task(
                 self._connect_one(target_ip, domains,
                                   WS_PATH_TEST if is_test_dc else WS_PATH))
@@ -97,6 +98,8 @@ class _WsPool:
                         adopted.add(ws)
                         connected += 1
                 except Exception as exc:
+                    if first_exc is None:
+                        first_exc = exc
                     log.debug("WS pool connect failed: %r", exc)
             if connected:
                 self._refill_failures.pop(key, None)
@@ -110,9 +113,19 @@ class _WsPool:
                     self.REFILL_BACKOFF_MAX,
                 )
                 self._refill_after[key] = time.monotonic() + delay
-                log.info(
-                    "WS pool refill failed for DC%d%s%s, retry in %.0fs",
-                    dc, 't' if is_test_dc else '', 'm' if is_media else '', delay)
+                # Причину последнем отказе показываем сразу на INFO —
+                # без неё лог при выключенном дебаге нечитаем.
+                if first_exc is not None:
+                    log.info(
+                        "WS pool refill failed for DC%d%s%s "
+                        "(last error: %r), retry in %.0fs",
+                        dc, 't' if is_test_dc else '', 'm' if is_media else '',
+                        first_exc, delay)
+                else:
+                    log.info(
+                        "WS pool refill failed for DC%d%s%s, retry in %.0fs",
+                        dc, 't' if is_test_dc else '', 'm' if is_media else '',
+                        delay)
             log.debug("WS pool refilled DC%d%s%s: %d ready",
                       dc, 't' if is_test_dc else '', 'm' if is_media else '', len(bucket))
         finally:
