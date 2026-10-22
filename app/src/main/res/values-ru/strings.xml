@@ -24,6 +24,7 @@
     <string name="logs_empty">Нет логов для сохранения</string>
     <string name="auto_config_running">Автонастройка: проверка доменов...</string>
     <string name="auto_config_done">Автонастройка завершена!</string>
+    <string name="auto_config_applying">Переподключаю с новой конфигурацией...</string>
     <string name="auto_check">Автопроверка подключения при старте</string>
     <string name="auto_connect">Автоподключение</string>
     <string name="autostart">Автозапуск при загрузке устройства</string>
@@ -45,6 +46,6 @@
     <string name="readiness_missing_title">Настройте для стабильной работы</string>
     <string name="readiness_missing_text">Не все условия стабильной работы выполнены — включи недостающие:</string>
     <string name="readiness_later">Позже</string>
-    <string name="app_version">Версия 1.2.4</string>
+    <string name="app_version_prefix">Версия</string>
 </resources>
 

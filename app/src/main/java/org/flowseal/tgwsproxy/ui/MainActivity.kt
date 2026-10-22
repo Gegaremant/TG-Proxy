@@ -714,8 +714,8 @@ fun MainScreen(
             // Кнопки автонастройки и ссылки — только при запущенном прокси
             // (пока соединения нет, их показывать не нужно).
             if (isRunning) {
-            // --- Автонастройка: доступна во всех режимах (работает и при
-            // запущенном прокси — переключает эндпоинты на лету).
+            // --- Автонастройка: подбирает SNI и CF-домены и сразу
+            // применяет их, перезапуская прокси.
             OutlinedButton(
                 onClick = {
                     if (isAutoConfiguring) return@OutlinedButton
@@ -727,6 +727,16 @@ fun MainScreen(
                         }
                         autoConfigStatus = ""
                         isAutoConfiguring = false
+                        // Подобранная конфигурация применяется сразу, как это
+                        // делает «Сохранить» в настройках: сервис стартует с
+                        // копией конфига, поэтому без перезапуска новый
+                        // домен/CF-список подействовали бы только при
+                        // следующем ручном «выкл/вкл».
+                        if (isRunning) {
+                            onRestart()
+                            autoConfigStatus =
+                                context.getString(R.string.auto_config_applying)
+                        }
                         Toast.makeText(
                             context,
                             context.getString(R.string.auto_config_done) + ": " + result,
@@ -859,7 +869,8 @@ fun MainScreen(
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = stringResource(R.string.app_version),
+                text = stringResource(R.string.app_version_prefix) + " " +
+                        stringResource(R.string.app_version_number),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp
             )

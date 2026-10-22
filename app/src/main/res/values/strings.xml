@@ -24,6 +24,7 @@
     <string name="logs_empty">No logs to save</string>
     <string name="auto_config_running">Auto config: testing domains...</string>
     <string name="auto_config_done">Auto config complete!</string>
+    <string name="auto_config_applying">Reconnecting with the new config...</string>
     <string name="auto_check">Auto connection check on start</string>
     <string name="auto_connect">Auto-connect</string>
     <string name="autostart">Start proxy on device boot</string>
@@ -45,5 +46,5 @@
     <string name="readiness_missing_title">Set up for reliable work</string>
     <string name="readiness_missing_text">Some prerequisites are not met yet — enable the missing ones:</string>
     <string name="readiness_later">Later</string>
-    <string name="app_version">Version 1.2.4</string>
+    <string name="app_version_prefix">Version</string>
 </resources>

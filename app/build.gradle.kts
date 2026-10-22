@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Единая точка изменения версии: отсюда собирается и versionName в
+// манифесте, и надпись «Версия …» на экране настроек.
+val appVersion = "1.2.5"
+
 android {
     namespace = "org.flowseal.tgwsproxy"
     compileSdk = 35
@@ -11,8 +15,11 @@ android {
         applicationId = "org.flowseal.tgwsproxy"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.2.3"
+        versionCode = 11
+        versionName = appVersion
+        // Единственная строковый ресурс с номером версии — UI показывает
+        // её вместе с локализованным префиксом из strings.xml.
+        resValue("string", "app_version_number", appVersion)
     }
 
     buildFeatures {
