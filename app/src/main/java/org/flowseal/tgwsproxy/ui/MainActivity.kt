@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -309,6 +310,9 @@ fun TgWsProxyTheme(themeMode: String = "system", content: @Composable () -> Unit
 data class ReadinessItem(
     val title: String,
     val done: Boolean,
+    /** Пункт без программной проверки: открываем настройки, пользователь
+     * выключает переключатель вручную. В агрегат «всё готово» не входит. */
+    val manual: Boolean = false,
     val action: () -> Unit
 )
 
@@ -405,7 +409,19 @@ fun computeReadinessItems(
                     })
                 } catch (_: Exception) {}
             }
-        }
+        },
+        // Ручные пункты: у этих переключателей оболочки (HyperOS, ColorOS и
+        // др.) нет публичного API — программно их состояние не прочитать.
+        // Кнопка открывает страницу приложения: на большинстве оболочек
+        // оба переключателя находятся в «Экономия батареи» / «Батарея».
+        ReadinessItem(context.getString(R.string.readiness_pause_unused), false,
+            action = { openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS) },
+            manual = true
+        ),
+        ReadinessItem(context.getString(R.string.readiness_stop_idle), false,
+            action = { openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS) },
+            manual = true
+        )
     )
 }
 
@@ -429,25 +445,39 @@ fun ReadinessCard(items: List<ReadinessItem>) {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        if (item.done) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                        null,
-                        tint = if (item.done) Color(0xFF43A047) else MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    if (item.manual) {
+                        // Ручной пункт: состояние не проверяется, вместо
+                        // галочки — нейтральная подсказка.
+                        Icon(
+                            Icons.Default.Info,
+                            null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    } else {
+                        Icon(
+                            if (item.done) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                            null,
+                            tint = if (item.done) Color(0xFF43A047) else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                     Spacer(Modifier.width(8.dp))
                     Text(
                         item.title,
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall
                     )
-                    if (!item.done) {
+                    if (item.manual || !item.done) {
                         TextButton(
                             onClick = item.action,
                             contentPadding = PaddingValues(horizontal = 8.dp)
                         ) {
                             Text(
-                                stringResource(R.string.readiness_enable),
+                                stringResource(
+                                    if (item.manual) R.string.readiness_check_manual
+                                    else R.string.readiness_enable
+                                ),
                                 style = MaterialTheme.typography.labelMedium
                             )
                         }
@@ -549,7 +579,7 @@ fun MainScreen(
                 })
                 if (!readinessPromptSeen) {
                     readinessPromptSeen = true
-                    if (readinessItems.any { !it.done }) {
+                    if (readinessItems.any { !it.done && !it.manual }) {
                         showReadinessPrompt = true
                     }
                 }
@@ -559,7 +589,7 @@ fun MainScreen(
     }
 
     if (showReadinessPrompt) {
-        val missing = readinessItems.filter { !it.done }
+        val missing = readinessItems.filter { !it.done && !it.manual }
         if (missing.isNotEmpty()) {
             AlertDialog(
                 onDismissRequest = { showReadinessPrompt = false },
@@ -706,10 +736,10 @@ fun MainScreen(
                 }
             }
 
-            // Пока прокси не запущен — показываем только чек-лист готовности.
-            if (!isRunning) {
-                ReadinessCard(readinessItems)
-            }
+            // Чек-лист готовности показываем всегда: и до запуска, и во
+            // время работы (в т.ч. когда соединение рвётся в фоне — пункты
+            // «приостановить в простое» и др. удобно проверить на живую).
+            ReadinessCard(readinessItems)
 
             // Кнопки автонастройки и ссылки — только при запущенном прокси
             // (пока соединения нет, их показывать не нужно).

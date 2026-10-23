@@ -37,11 +37,14 @@
     <string name="battery_optimization_off">Оптимизация батареи уже отключена</string>
     <string name="readiness_title">Готовность к запуску</string>
     <string name="readiness_battery">Энергосбережение отключено для приложения</string>
-    <string name="readiness_data_saver">Сеть без ограничений (исключение экономии трафика)</string>
+    <string name="readiness_data_saver">Неограниченное использование трафика</string>
     <string name="readiness_autostart">Автозапуск при включении телефона</string>
     <string name="readiness_autoconnect">Автоподключение при открытии приложения</string>
     <string name="readiness_background">Работа в фоне разрешена</string>
     <string name="readiness_notifications">Показ уведомлений разрешён</string>
+    <string name="readiness_pause_unused">«Приостановить работу в неактивный период» — выключить</string>
+    <string name="readiness_stop_idle">«Остановить при простое» — выключить</string>
+    <string name="readiness_check_manual">Открыть</string>
     <string name="readiness_enable">Включить</string>
     <string name="readiness_missing_title">Настройте для стабильной работы</string>
     <string name="readiness_missing_text">Не все условия стабильной работы выполнены — включи недостающие:</string>

@@ -5,13 +5,55 @@
 [English Version / Английская версия](README_en.md)
 
 ### ⬇️ Скачать для своей ОС
-[![Windows](https://img.shields.io/badge/Windows-1.2.6-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.6-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.6-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.6-MAC.dmg)
+[![Windows](https://img.shields.io/badge/Windows-1.2.7-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.7-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.7-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.7-MAC.dmg)
 
-[![Linux](https://img.shields.io/badge/Linux-1.2.6-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.6-Linux) [![Android](https://img.shields.io/badge/Android-1.2.6-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.6-Android.apk)
+[![Linux](https://img.shields.io/badge/Linux-1.2.7-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.7-Linux) [![Android](https://img.shields.io/badge/Android-1.2.7-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.7-Android.apk)
 
 **TG-Proxy** — это единое кроссплатформенное приложение для обхода блокировок Telegram на основе MTProto WebSocket Proxy с поддержкой FakeTLS. Оно объединяет в себе версии для **Android**, **Windows**, **macOS** и **Linux** под одним капотом, предлагая единый стильный интерфейс и одинаковый набор функций на всех платформах.
 
 [⬇️ СКАЧАТЬ LATEST RELEASE (ПОСЛЕДНЮЮ ВЕРСИЮ)](https://github.com/Gegaremant/TG-Proxy/releases/latest)
+
+### 🤖 Android: если не устанавливается
+
+<details>
+<summary><code>INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match</code></summary>
+
+На устройстве осталась старая копия с другой подписью (например, сборка до
+введения постоянного ключа подписи). Обычное удаление не всегда убирает
+все профили/клоны:
+
+1. **Настройки → Приложения → TG-Proxy → Удалить** (если есть кнопка
+   «Удалить для всех пользователей» — выбирайте её).
+2. Проверьте клоны приложений: **«Двойные приложения» / «Второе
+   пространство» / «Secure Folder» / «Защищённая папка»** — там может
+   жить своя копия, её тоже нужно удалить.
+3. Если всё ещё не ставится — через adb:
+   ```bash
+   adb shell pm list users          # список профилей устройства
+   adb shell pm uninstall --user 0 org.flowseal.tgwsproxy
+   # и для остальных профилей: pm uninstall --user <id> org.flowseal.tgwsproxy
+   ```
+4. Ставьте APK последней версии из раздела «Скачать».
+
+</details>
+
+<details>
+<summary>Прокси «глохнет» через минуту после сворачивания приложения</summary>
+
+Штатные (OEM) оптимизации батареи замораживают приложение и рвут его
+соединения. В приложении есть чек-лист готовности (виден и при работающем
+прокси) — включите:
+
+* «Неограниченное использование трафика» (Мобильные данные и Wi-Fi →
+  разрешить без ограничений),
+* «Работа в фоне» / батарея без ограничений,
+* в настройках батареи/приложения: **выключить** «Приостановить работу
+  в неактивный период» и «Остановить при простое», включить автозапуск.
+
+Настройки называются по-разному на разных оболочках (HyperOS, ColorOS,
+One UI и др.) — пункты чек-листа с кнопкой «Открыть» ведут на нужные
+экраны.
+</details>
 
 > **Дисклеймер:** Данный проект создан в исследовательских целях в качестве тренировки по программированию. Он является авторским видением и, по сути, эссенцией и форком лучших наработок оригинальных репозиториев: [https://github.com/Flowseal/tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy) и [https://github.com/ihtfw/tg-ws-proxy-android](https://github.com/ihtfw/tg-ws-proxy-android).
 

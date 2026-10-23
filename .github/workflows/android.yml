@@ -79,13 +79,13 @@ jobs:
         echo "OK: APK signed with the stable key"
       
     - name: Rename APK
-      run: mv app/build/outputs/apk/debug/app-debug.apk TG-Proxy-1.2.6-Android.apk
+      run: mv app/build/outputs/apk/debug/app-debug.apk TG-Proxy-1.2.7-Android.apk
       
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.2.6
-        name: "TG-Proxy-1.2.6"
-        files: TG-Proxy-1.2.6-Android.apk
+        tag_name: v1.2.7
+        name: "TG-Proxy-1.2.7"
+        files: TG-Proxy-1.2.7-Android.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -8,6 +8,44 @@
 
 [⬇️ DOWNLOAD LATEST RELEASE](https://github.com/Gegaremant/TG-Proxy/releases/latest)
 
+### 🤖 Android: if the APK won't install
+
+<details>
+<summary><code>INSTALL_FAILED_UPDATE_INCOMPATIBLE: signatures do not match</code></summary>
+
+An older build signed with a different key is still present on the device.
+A plain uninstall does not always remove every profile/clone:
+
+1. **Settings → Apps → TG-Proxy → Uninstall** (prefer "Uninstall for all
+   users" if offered).
+2. Check app clones: **"Dual apps" / "Second space" / "App cloner" /
+   "Secure Folder"** — a hidden copy may live there; remove it too.
+3. Still failing — use adb:
+   ```bash
+   adb shell pm list users          # list device profiles
+   adb shell pm uninstall --user 0 org.flowseal.tgwsproxy
+   # repeat for other profiles: pm uninstall --user <id> org.flowseal.tgwsproxy
+   ```
+4. Then install the latest APK from the download section.
+
+</details>
+
+<details>
+<summary>Proxy stalls a minute after the app loses focus</summary>
+
+Built-in (OEM) battery optimizations freeze the app and drop its
+connections. The in-app readiness checklist (visible even while the proxy
+is running) walks you through:
+
+* "Unrestricted data usage" (Mobile data & Wi-Fi → allow unrestricted),
+* unrestricted background battery usage,
+* in battery/app settings: **disable** "Pause activity when unused" and
+  "Stop when idle", enable autostart.
+
+Wording differs across shells (HyperOS, ColorOS, One UI, etc.) — each
+checklist row opens the right screen.
+</details>
+
 > **Disclaimer:** This project was created for research and educational programming purposes. It is an author's vision and essentially a fork and essence of the best practices and codebases from the original repositories: [https://github.com/Flowseal/tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy) and [https://github.com/ihtfw/tg-ws-proxy-android](https://github.com/ihtfw/tg-ws-proxy-android).
 
 ## Features
