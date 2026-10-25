@@ -44,6 +44,7 @@
     <string name="readiness_notifications">Notifications allowed</string>
     <string name="readiness_pause_unused">"Pause activity when unused" — disable</string>
     <string name="readiness_stop_idle">"Stop when idle" — disable</string>
+    <string name="readiness_hios_app_launch">HiOS / Phone Manager → App Launch → enable "Run in background"</string>
     <string name="readiness_check_manual">Open</string>
     <string name="readiness_enable">Enable</string>
     <string name="readiness_missing_title">Set up for reliable work</string>

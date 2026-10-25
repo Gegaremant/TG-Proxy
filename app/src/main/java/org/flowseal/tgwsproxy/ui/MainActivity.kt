@@ -363,6 +363,39 @@ fun computeReadinessItems(
     // Уведомления нужны постоянной службы, чтобы её не убивала система.
     val notificationsOk = nm.areNotificationsEnabled()
 
+    val manualItems = mutableListOf<ReadinessItem>(
+        ReadinessItem(context.getString(R.string.readiness_pause_unused), false,
+            action = { openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS) },
+            manual = true
+        ),
+        ReadinessItem(context.getString(R.string.readiness_stop_idle), false,
+            action = { openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS) },
+            manual = true
+        )
+    )
+
+    // Tecno / Infinix / Itel — все на HiOS (Transsion). У HiOS свой
+    // «Phone Manager» (Power Master → App Launch), который независимо от
+    // системных настроек батареи может резать фоновую сеть и замораживать
+    // процесс. Нельзя проверить программно — только направить пользователя
+    // в нужное меню.
+    if ("TECNO".equals(Build.MANUFACTURER, ignoreCase = true)
+        || "INFINIX".equals(Build.MANUFACTURER, ignoreCase = true)
+        || "ITELE".equals(Build.MANUFACTURER, ignoreCase = true)
+        || "TRANSION".equals(Build.MANUFACTURER, ignoreCase = true)) {
+        manualItems.add(
+            ReadinessItem(context.getString(R.string.readiness_hios_app_launch), false,
+                action = {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                },
+                manual = true
+            )
+        )
+    }
+
     return listOf(
         ReadinessItem(context.getString(R.string.readiness_battery), batteryOk) {
             try {
@@ -409,21 +442,10 @@ fun computeReadinessItems(
                     })
                 } catch (_: Exception) {}
             }
-        },
-        // Ручные пункты: у этих переключателей оболочки (HyperOS, ColorOS и
-        // др.) нет публичного API — программно их состояние не прочитать.
-        // Кнопка открывает страницу приложения: на большинстве оболочек
-        // оба переключателя находятся в «Экономия батареи» / «Батарея».
-        ReadinessItem(context.getString(R.string.readiness_pause_unused), false,
-            action = { openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS) },
-            manual = true
-        ),
-        ReadinessItem(context.getString(R.string.readiness_stop_idle), false,
-            action = { openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS) },
-            manual = true
-        )
-    )
-}
+        }
+    ) + manualItems
+        }
+
 
 /** Чек-лист готовности: галочки по каждому пункту + кнопка для недостающих. */
 @Composable
