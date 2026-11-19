@@ -48,7 +48,7 @@ def _proc_mode(proc) -> Optional[str]:
 def running_modes() -> Dict[str, List[int]]:
     """
     Scan running processes and return a mapping mode -> list of PIDs for any
-    TG Proxy instances found (GUI and/or service).
+    YaProFun©TgProxy instances found (GUI and/or service).
     """
     result: Dict[str, List[int]] = {}
     try:
@@ -89,7 +89,7 @@ def any_running() -> bool:
 
 
 def describe_running() -> str:
-    """Human-readable summary of which TG Proxy instances are running."""
+    """Human-readable summary of which YaProFun©TgProxy instances are running."""
     modes = running_modes()
     if not modes:
         return ""

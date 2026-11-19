@@ -25,7 +25,7 @@ VSVersionInfo(
             StringStruct(u'InternalName', u'TgWsProxy'),
             StringStruct(u'LegalCopyright', u'Copyright (c) Gegaremant labs. MIT License.'),
             StringStruct(u'OriginalFilename', u'TgWsProxy.exe'),
-            StringStruct(u'ProductName', u'TG Proxy'),
+            StringStruct(u'ProductName', u'YaProFun©TgProxy'),
             StringStruct(u'ProductVersion', u'1.2.9.0'),
           ]
         )

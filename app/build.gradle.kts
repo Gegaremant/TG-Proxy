@@ -5,7 +5,7 @@ plugins {
 
 // Единая точка изменения версии: отсюда собирается и versionName в
 // манифесте, и надпись «Версия …» на экране настроек.
-val appVersion = "1.2.12-hios"
+val appVersion = "1.2.9"
 
 android {
     namespace = "org.flowseal.tgwsproxy"
@@ -15,7 +15,7 @@ android {
         applicationId = "org.flowseal.tgwsproxy"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
+        versionCode = 15
         versionName = appVersion
         // Единственная строковый ресурс с номером версии — UI показывает
         // её вместе с локализованным префиксом из strings.xml.

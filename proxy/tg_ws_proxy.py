@@ -726,7 +726,7 @@ def main():
         from utils.runtime_mode import running_modes, GUI_MODE
         gui_pids = running_modes().get(GUI_MODE, [])
         if gui_pids:
-            log.warning("TG Proxy already runs in GUI mode (PIDs: %s). "
+            log.warning("YaProFun©TgProxy already runs in GUI mode (PIDs: %s). "
                         "It occupies the port; the service may fail to bind.",
                         ", ".join(str(p) for p in gui_pids))
     except Exception as exc:
