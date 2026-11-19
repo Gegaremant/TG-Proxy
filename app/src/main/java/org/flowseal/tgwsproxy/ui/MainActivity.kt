@@ -394,6 +394,17 @@ fun computeReadinessItems(
                 manual = true
             )
         )
+        manualItems.add(
+            ReadinessItem(context.getString(R.string.readiness_hios_energy), false,
+                action = {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                },
+                manual = true
+            )
+        )
     }
 
     return listOf(

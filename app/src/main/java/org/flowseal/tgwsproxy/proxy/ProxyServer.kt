@@ -45,7 +45,7 @@ class ProxyServer(
     @Volatile
     var boundPort: Int = port
         private set
-    private val wsPool = WsPool(poolSize, onLog = { msg -> log(msg) }, socks5Proxy = upstreamProxy)
+    private val wsPool = WsPool(poolSize, onLog = { msg -> log(msg) }, socks5Proxy = upstreamProxy, useCfProxy = useCfProxy)
     val stats: Stats get() = wsPool.stats
 
     private val wsBlacklist = ConcurrentHashMap.newKeySet<Pair<Int, Boolean>>()
@@ -372,8 +372,10 @@ class ProxyServer(
             }
 
             // Прямой WS к Telegram DC (kws{dc}.web.telegram.org) через заданный IP.
-            // Попробуем только если DC сконфигурирован.
-            if (ws == null && dcConfigured && target != null) {
+            // Попробуем только если DC сконфигурирован и НЕ используется Cloudflare режим
+            // (в РФ прямые IP заблокированы, попытки стучаться туда через таймаут 8с
+            // только перегружают сеть и будят процессор в фоне).
+            if (ws == null && dcConfigured && target != null && !useCfProxy) {
                 ws = wsPool.get(dc, isMedia, target, domains)
                 if (ws != null) {
                     log("[$label] DC$dc$mediaTag -> pool hit via $target")

@@ -140,24 +140,23 @@ class ProxyService : Service() {
         addLog("Clients connect via 127.0.0.1:$actualPort")
         updateNotification("Running on localhost:$actualPort")
 
-        // Автопроверка: в фоне выкидываем из пула мёртвые CF-домены.
-        // Половина публичных доменов не отвечает, и каждый мёртвый домен
-        // стоит полного таймаута подключения на каждом новом клиенте.
-        if (config.autoCheck) {
-            Thread({
-                try {
-                    val working = kotlinx.coroutines.runBlocking {
-                        CfDomains.filterWorkingDomains()
-                    }
-                    if (working.isNotEmpty()) {
-                        CfDomains.applyWorkingDomains(working)
-                        addLog("Auto check: ${working.size}/${CfDomains.domains.size} CF domains are alive")
-                    }
-                } catch (e: Exception) {
-                    addLog("Auto check failed: ${e.message}")
-                }
-            }, "cf-availability-check").apply { isDaemon = true; start() }
-        }
+        // Отключаем автопроверку CF-доменов при старте для совместимости с
+        // жёсткой оптимизацией фоновых сервисов (HiOS/Transsion). В 1.2.1
+        // такого небыло и прокси дольше жил в фоне. if (config.autoCheck) {
+        //     Thread({
+        //         try {
+        //             val working = kotlinx.coroutines.runBlocking {
+        //                 CfDomains.filterWorkingDomains()
+        //             }
+        //             if (working.isNotEmpty()) {
+        //                 CfDomains.applyWorkingDomains(working)
+        //                 addLog("Auto check: ${working.size}/${CfDomains.domains.size} CF domains are alive")
+        //             }
+        //         } catch (e: Exception) {
+        //             addLog("Auto check failed: ${e.message}")
+        //         }
+        //     }, "cf-availability-check").apply { isDaemon = true; start() }
+        // }
     }
 
     fun stopProxy() {
@@ -237,7 +236,14 @@ class ProxyService : Service() {
 
     private fun startForegroundWithNotification() {
         val notification = buildNotification("Starting...")
+        // Для максимальной совместимости с жёсткой оптимизацией HiOS/Transsion
+        // (как в 1.2.1) пробуем старый путь без FOREGROUND_SERVICE_TYPE_SPECIAL_USE.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                startForeground(NOTIFICATION_ID, notification)
+                return
+            } catch (_: Exception) {
+            }
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             startForeground(NOTIFICATION_ID, notification)

@@ -13,7 +13,8 @@ class WsPool(
     private val poolSize: Int = 4,
     private val maxAgeMs: Long = 120_000L,
     private val onLog: ((String) -> Unit)? = null,
-    private val socks5Proxy: String? = null
+    private val socks5Proxy: String? = null,
+    private val useCfProxy: Boolean = false
 ) {
 
     private val TAG = "WsPool"
@@ -35,7 +36,7 @@ class WsPool(
     val stats = Stats()
 
     fun get(dc: Int, isMedia: Boolean, targetIp: String, domains: List<String>): RawWebSocket? {
-        if (poolSize <= 0) return null
+        if (poolSize <= 0 || useCfProxy) return null
         val key = dc to isMedia
         val bucket = idle[key] ?: return null.also {
             stats.poolMisses.incrementAndGet()
@@ -128,6 +129,7 @@ class WsPool(
     }
 
     fun warmup(dcOpt: Map<Int, String>) {
+        if (useCfProxy || poolSize <= 0) return
         for ((dc, targetIp) in dcOpt) {
             for (isMedia in listOf(false, true)) {
                 val domains = TelegramDC.wsDomains(dc, isMedia)

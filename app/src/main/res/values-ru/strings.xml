@@ -45,6 +45,7 @@
     <string name="readiness_pause_unused">«Приостановить работу в неактивный период» — выключить</string>
     <string name="readiness_stop_idle">«Остановить при простое» — выключить</string>
     <string name="readiness_hios_app_launch">HiOS / Phone Manager → «Управление запуском приложений» → включить «Работа в фоне»</string>
+    <string name="readiness_hios_energy">HiOS: управление энергосбережением — выбрать «Нет ограничений»</string>
     <string name="readiness_check_manual">Открыть</string>
     <string name="readiness_enable">Включить</string>
     <string name="readiness_missing_title">Настройте для стабильной работы</string>
