@@ -3,6 +3,7 @@ name: Desktop Build
 on:
   push:
     branches: [ "main", "master" ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ "main", "master" ]
 
@@ -19,6 +20,34 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Resolve release version from tag
+      id: ver
+      run: |
+        if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          TAG="${GITHUB_REF_NAME}"
+        else
+          TAG="v1.2.9"
+        fi
+        VERSION="${TAG#v}"
+        if ! echo "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "::error::Release tag must be in vX.Y.Z format, got '${TAG}'"
+          exit 1
+        fi
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "name=TG-Proxy-${VERSION}" >> "$GITHUB_OUTPUT"
+
+    - name: Check version alignment with source
+      run: |
+        VERSION="${{ steps.ver.outputs.version }}"
+        CODE_VERSION="$(grep -oE '__version__ = "[^"]+"' proxy/__init__.py | head -n1 | sed -E 's/.*"([^"]*)".*/\1/')"
+        echo "Release tag version : ${VERSION}"
+        echo "Source code version  : ${CODE_VERSION}"
+        if [ "${VERSION}" != "${CODE_VERSION}" ]; then
+          echo "::error::Version mismatch: tag is v${VERSION} but source is ${CODE_VERSION}"
+          exit 1
+        fi
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -40,16 +69,16 @@ jobs:
       run: |
         pyinstaller packaging/macos.spec
         chmod +x packaging/dmg/build_dmg.sh
-        packaging/dmg/build_dmg.sh "dist/TG FREE with 🖤 From KatYa && Gegaremant.app" "TG-Proxy" "dist/TG-Proxy-1.2.9-MAC.dmg"
+        packaging/dmg/build_dmg.sh "dist/TG FREE with 🖤 From KatYa && Gegaremant.app" "TG-Proxy" "dist/TG-Proxy-${{ steps.ver.outputs.version }}-MAC.dmg"
 
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.2.9
-        name: "TG-Proxy-1.2.9"
+        tag_name: ${{ steps.ver.outputs.tag }}
+        name: ${{ steps.ver.outputs.name }}
         files: |
-          dist/TG-Proxy-1.2.9-Windows.exe
-          dist/TG-Proxy-1.2.9-MAC.dmg
+          dist/TG-Proxy-${{ steps.ver.outputs.version }}-Windows.exe
+          dist/TG-Proxy-${{ steps.ver.outputs.version }}-MAC.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -58,6 +87,34 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Resolve release version from tag
+      id: ver
+      run: |
+        if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          TAG="${GITHUB_REF_NAME}"
+        else
+          TAG="v1.2.9"
+        fi
+        VERSION="${TAG#v}"
+        if ! echo "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "::error::Release tag must be in vX.Y.Z format, got '${TAG}'"
+          exit 1
+        fi
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "name=TG-Proxy-${VERSION}" >> "$GITHUB_OUTPUT"
+
+    - name: Check version alignment with source
+      run: |
+        VERSION="${{ steps.ver.outputs.version }}"
+        CODE_VERSION="$(grep -oE '__version__ = "[^"]+"' proxy/__init__.py | head -n1 | sed -E 's/.*"([^"]*)".*/\1/')"
+        echo "Release tag version : ${VERSION}"
+        echo "Source code version  : ${CODE_VERSION}"
+        if [ "${VERSION}" != "${CODE_VERSION}" ]; then
+          echo "::error::Version mismatch: tag is v${VERSION} but source is ${CODE_VERSION}"
+          exit 1
+        fi
 
     # linux.spec требует полный GI-бандл (GTK3, AppIndicator/Ayatana, DBus typelib).
     # Системный python3 + venv --system-site-packages дают pyinstaller доступ к gi.
@@ -92,10 +149,10 @@ jobs:
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.2.9
-        name: "TG-Proxy-1.2.9"
+        tag_name: ${{ steps.ver.outputs.tag }}
+        name: ${{ steps.ver.outputs.name }}
         files: |
-          dist/TG-Proxy-1.2.9-Linux
+          dist/TG-Proxy-${{ steps.ver.outputs.version }}-Linux
           install_TG-Proxy.sh
           releases/tgdesktop/*
       env:
