@@ -265,7 +265,7 @@ object FakeTls {
         appRecord[1] = TLS_VERSION_12
         appRecord[2] = TLS_VERSION_12
         appRecord[3] = ((appDataLen ushr 8) and 0xFF).toByte()
-        appRecord[4] = (appDataLen and 0xFF).toByte
+        appRecord[4] = (appDataLen and 0xFF).toByte()
         Random.nextBytes(appRecord, 5, appDataLen)
 
         val response = ByteArray(serverHello.size + CCS_FRAME.size + appRecord.size)
