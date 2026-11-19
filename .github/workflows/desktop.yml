@@ -28,7 +28,7 @@ jobs:
         if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
           TAG="${GITHUB_REF_NAME}"
         else
-          TAG="v1.2.9"
+          TAG="v1.2.10"
         fi
         VERSION="${TAG#v}"
         if ! echo "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -37,7 +37,7 @@ jobs:
         fi
         echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
         echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-        echo "name=TG-Proxy-${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "name=TgProxy ${VERSION}" >> "$GITHUB_OUTPUT"
 
     - name: Check version alignment with source
       shell: bash
@@ -71,7 +71,7 @@ jobs:
       run: |
         pyinstaller packaging/macos.spec
         chmod +x packaging/dmg/build_dmg.sh
-        packaging/dmg/build_dmg.sh "dist/YaProFun©TgProxy.app" "TG-Proxy" "dist/TG-Proxy-${{ steps.ver.outputs.version }}-MAC.dmg"
+        packaging/dmg/build_dmg.sh "dist/TgProxy.app" "TgProxy" "dist/TgProxy-${{ steps.ver.outputs.version }}-MAC.dmg"
 
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
@@ -79,8 +79,8 @@ jobs:
         tag_name: ${{ steps.ver.outputs.tag }}
         name: ${{ steps.ver.outputs.name }}
         files: |
-          dist/TG-Proxy-${{ steps.ver.outputs.version }}-Windows.exe
-          dist/TG-Proxy-${{ steps.ver.outputs.version }}-MAC.dmg
+          dist/TgProxy-${{ steps.ver.outputs.version }}-Windows.exe
+          dist/TgProxy-${{ steps.ver.outputs.version }}-MAC.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -97,7 +97,7 @@ jobs:
         if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
           TAG="${GITHUB_REF_NAME}"
         else
-          TAG="v1.2.9"
+          TAG="v1.2.10"
         fi
         VERSION="${TAG#v}"
         if ! echo "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -106,7 +106,7 @@ jobs:
         fi
         echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
         echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-        echo "name=TG-Proxy-${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "name=TgProxy ${VERSION}" >> "$GITHUB_OUTPUT"
 
     - name: Check version alignment with source
       shell: bash
@@ -156,7 +156,7 @@ jobs:
         tag_name: ${{ steps.ver.outputs.tag }}
         name: ${{ steps.ver.outputs.name }}
         files: |
-          dist/TG-Proxy-${{ steps.ver.outputs.version }}-Linux
+          dist/TgProxy-${{ steps.ver.outputs.version }}-Linux
           install_TG-Proxy.sh
           releases/tgdesktop/*
       env:

@@ -106,12 +106,22 @@ object CfDomains {
      * So we send a proper relay-init and watch the connection: if the
      * endpoint sends data or keeps the stream open, it is usable.
      */
-    suspend fun probeDomain(domain: String, dc: Int = 2, timeoutMs: Int = 4000): Boolean =
+    suspend fun probeDomain(
+        domain: String,
+        dc: Int = 2,
+        timeoutMs: Int = 4000,
+        secure: Boolean = true
+    ): Boolean =
         withContext(Dispatchers.IO) {
             val host = "kws$dc.$domain"
             var ws: RawWebSocket? = null
             try {
-                ws = RawWebSocket.connect(host, host, timeoutMs = timeoutMs)
+                ws = RawWebSocket.connect(
+                    host, host,
+                    connectTimeoutMs = minOf(timeoutMs, 2500),
+                    readTimeoutMs = timeoutMs,
+                    secure = secure
+                )
                 // Same init the proxy sends to the endpoint.
                 ws.send(CryptoHelper.generateRelayInit(ABRIDGED_PROTO_TAG, dc))
 
@@ -155,6 +165,7 @@ object CfDomains {
      */
     suspend fun filterWorkingDomains(
         dc: Int = 2,
+        secure: Boolean = true,
         onProgress: (checked: Int, total: Int, domain: String, ok: Boolean) -> Unit =
             { _, _, _, _ -> }
     ): List<String> = withContext(Dispatchers.IO) {
@@ -166,7 +177,7 @@ object CfDomains {
             pool.mapIndexed { index, domain ->
                 async {
                     gate.withPermit {
-                        val ok = probeDomain(domain, dc)
+                        val ok = probeDomain(domain, dc, secure = secure)
                         if (ok) working.add(domain)
                         onProgress(index + 1, pool.size, domain, ok)
                     }
@@ -194,9 +205,9 @@ object CfDomains {
 
     // ---- Domain health tracking -------------------------------------------
     // A domain whose connections keep dying shortly after being established is
-    // temporarily deprioritized: two strikes put it on cooldown with an
-    // exponential backoff (1 min -> 10 min), and cooled-down domains are tried
-    // only after all healthy ones. Success resets the strike counter.
+    // temporarily deprioritized: three strikes put it on a short cooldown
+    // with exponential backoff (15 s -> 2 min), and cooled-down domains are
+    // tried only after all healthy ones. Success resets the strike counter.
 
     private class Health {
         var failures = 0
@@ -204,9 +215,9 @@ object CfDomains {
     }
 
     private val health = ConcurrentHashMap<String, Health>()
-    private const val FAILURE_STRIKES = 2
-    private const val COOLDOWN_BASE_MS = 60_000L
-    private const val COOLDOWN_MAX_MS = 600_000L
+    private const val FAILURE_STRIKES = 3
+    private const val COOLDOWN_BASE_MS = 15_000L
+    private const val COOLDOWN_MAX_MS = 120_000L
 
     /**
      * Domains ordered for connection attempts: healthy ones first (shuffled to

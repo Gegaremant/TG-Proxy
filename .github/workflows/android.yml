@@ -24,7 +24,7 @@ jobs:
         if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
           TAG="${GITHUB_REF_NAME}"
         else
-          TAG="v1.2.9"
+          TAG="v1.2.10"
         fi
         VERSION="${TAG#v}"
         if ! echo "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -33,7 +33,7 @@ jobs:
         fi
         echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
         echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-        echo "name=TG-Proxy-${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "name=TgProxy ${VERSION}" >> "$GITHUB_OUTPUT"
 
     - name: Check version alignment with source
       shell: bash
@@ -110,13 +110,13 @@ jobs:
         echo "OK: APK signed with the stable key"
       
     - name: Rename APK
-      run: mv app/build/outputs/apk/debug/app-debug.apk TG-Proxy-${{ steps.ver.outputs.version }}-Android.apk
+      run: mv app/build/outputs/apk/debug/app-debug.apk TgProxy-${{ steps.ver.outputs.version }}-Android.apk
       
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.ver.outputs.tag }}
         name: ${{ steps.ver.outputs.name }}
-        files: TG-Proxy-${{ steps.ver.outputs.version }}-Android.apk
+        files: TgProxy-${{ steps.ver.outputs.version }}-Android.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

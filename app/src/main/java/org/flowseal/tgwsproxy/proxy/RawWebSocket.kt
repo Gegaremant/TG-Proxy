@@ -70,37 +70,58 @@ class RawWebSocket private constructor(
             domain: String,
             path: String = "/apiws",
             timeoutMs: Int = 10000,
-            socks5Proxy: String? = null
+            connectTimeoutMs: Int = timeoutMs,
+            readTimeoutMs: Int = timeoutMs,
+            socks5Proxy: String? = null,
+            secure: Boolean = true
         ): RawWebSocket {
+            // CF proxy / worker can be forced onto plain HTTP (port 80) when
+            // the network throttles or blocks the TLS handshake. Mirrors the
+            // desktop "no_secure" option.
+            val port = if (secure) 443 else 80
             val connectHost = if (isIpLiteral(ip)) ip else domain
             val rawSocket: Socket
 
             if (socks5Proxy != null && socks5Proxy.isNotBlank()) {
                 val (proxyHost, proxyPort) = Socks5.parseHostPort(socks5Proxy)
                     ?: throw java.io.IOException("Invalid SOCKS5 proxy: $socks5Proxy")
-                rawSocket = Socks5.connect(proxyHost, proxyPort, connectHost, 443, timeoutMs)
+                rawSocket = Socks5.connect(proxyHost, proxyPort, connectHost, port, connectTimeoutMs)
                     ?: throw java.io.IOException(
-                        "SOCKS5 connect to $connectHost:443 via $socks5Proxy failed"
+                        "SOCKS5 connect to $connectHost:$port via $socks5Proxy failed"
                     )
             } else {
-                val connectIp = resolveConnectAddress(connectHost, timeoutMs)
+                // DNS must not consume the whole connection budget: five
+                // resolvers plus DoH can otherwise burn tens of seconds.
+                val connectIp = resolveConnectAddress(connectHost, minOf(connectTimeoutMs, 2500))
                 rawSocket = Socket()
-                rawSocket.connect(InetSocketAddress(connectIp, 443), timeoutMs)
+                rawSocket.connect(InetSocketAddress(connectIp, port), connectTimeoutMs)
             }
 
-            rawSocket.soTimeout = timeoutMs
+            // Separate budgets: a fast TCP connect, a realistic budget for
+            // the TLS handshake and the HTTP upgrade response. Using one
+            // timeout for both produced mass "Read timed out" errors on CF.
+            rawSocket.soTimeout = readTimeoutMs
             rawSocket.tcpNoDelay = true
             rawSocket.keepAlive = true
             rawSocket.setSendBufferSize(1024 * 1024)
             rawSocket.setReceiveBufferSize(1024 * 1024)
 
-            val sslSocket = sslContext.socketFactory.createSocket(
-                rawSocket, domain, 443, true
-            ) as SSLSocket
-            sslSocket.startHandshake()
-
-            val output = sslSocket.getOutputStream()
-            val input = sslSocket.getInputStream()
+            val transport: Socket
+            val output: OutputStream
+            val input: InputStream
+            if (secure) {
+                val sslSocket = sslContext.socketFactory.createSocket(
+                    rawSocket, domain, port, true
+                ) as SSLSocket
+                sslSocket.startHandshake()
+                transport = sslSocket
+                output = sslSocket.getOutputStream()
+                input = sslSocket.getInputStream()
+            } else {
+                transport = rawSocket
+                output = rawSocket.getOutputStream()
+                input = rawSocket.getInputStream()
+            }
 
             // WebSocket upgrade request
             val wsKeyBytes = ByteArray(16)
@@ -140,7 +161,7 @@ class RawWebSocket private constructor(
             }
 
             if (responseLines.isEmpty()) {
-                sslSocket.close()
+                transport.close()
                 throw WsHandshakeError(0, "empty response")
             }
 
@@ -150,8 +171,8 @@ class RawWebSocket private constructor(
 
             if (statusCode == 101) {
                 // Set timeout for ping keepalive (e.g. 20 seconds)
-                sslSocket.soTimeout = 20000
-                return RawWebSocket(input, output, sslSocket)
+                transport.soTimeout = 20000
+                return RawWebSocket(input, output, transport)
             }
 
             // Parse headers for redirect detection
@@ -164,7 +185,7 @@ class RawWebSocket private constructor(
                 }
             }
 
-            sslSocket.close()
+            transport.close()
             throw WsHandshakeError(
                 statusCode, firstLine,
                 headers, headers["location"]

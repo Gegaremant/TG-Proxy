@@ -90,14 +90,14 @@ coll = COLLECT(
 
 app = BUNDLE(
     coll,
-    name='YaProFun©TgProxy.app',
+    name='TgProxy.app',
     icon=icon_path,
     bundle_identifier='com.tgwsproxy.app',
     info_plist={
-        'CFBundleName': 'YaProFun©TgProxy',
-        'CFBundleDisplayName': 'YaProFun©TgProxy',
-        'CFBundleShortVersionString': '1.2.9',
-        'CFBundleVersion': '1.2.9',
+        'CFBundleName': 'TgProxy',
+        'CFBundleDisplayName': 'TgProxy',
+        'CFBundleShortVersionString': '1.2.10',
+        'CFBundleVersion': '1.2.10',
         'LSMinimumSystemVersion': '10.15',
         'LSUIElement': True,
         'NSHighResolutionCapable': True,

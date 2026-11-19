@@ -1,5 +1,7 @@
 <resources>
-    <string name="app_name">YaProFun©TgProxy</string>
+    <string name="app_name">TgProxy</string>
+    <string name="app_signature">Build between dreaming and waking, forged in a daring union of human and machine. Рождено на грани сна и яви в дерзком союзе человека и машины.</string>
+    <string name="no_secure">Выключить TLS для CF-прокси и CF-worker</string>
     <string name="status_running">Статус: ЗАПУЩЕН</string>
     <string name="status_stopped">Статус: ОСТАНОВЛЕН</string>
     <string name="start_proxy">Запустить</string>

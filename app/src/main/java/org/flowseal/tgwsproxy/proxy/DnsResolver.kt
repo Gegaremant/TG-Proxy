@@ -48,9 +48,12 @@ object DnsResolver {
 
     /**
      * Returns an IPv4 address string for [host], or null if unresolvable.
+     * All resolver strategies share one deadline: a slow/unreachable server
+     * must not turn a "5 second" connection attempt into a 30 second stall.
      */
     fun resolve(host: String, timeoutMs: Int = 3000): String? {
         if (host.isBlank()) return null
+        val deadline = System.currentTimeMillis() + timeoutMs.coerceAtLeast(200).toLong()
 
         cache[host]?.let {
             if (System.currentTimeMillis() - it.at < CACHE_TTL_MS) return it.ip
@@ -68,10 +71,12 @@ object DnsResolver {
             }
         } catch (_: Exception) {}
 
-        // 2) Direct UDP queries.
+        // 2) Direct UDP queries, sharing the overall budget.
         for (server in servers) {
+            val remaining = (deadline - System.currentTimeMillis()).toInt()
+            if (remaining <= 0) break
             try {
-                val ip = queryA(server, host, timeoutMs)
+                val ip = queryA(server, host, minOf(timeoutMs, remaining))
                 if (ip != null) {
                     cache[host] = Entry(ip, System.currentTimeMillis())
                     return ip
@@ -84,7 +89,7 @@ object DnsResolver {
         // 3) DNS over HTTPS (JSON) fallback. UDP 53 is often blocked/poisoned
         // on captive/blocking networks, but HTTPS works. Mirrors the reference
         // proxy's resolve_doh(). IPv4 answers are preferred.
-        val doh = resolveDoh(host, timeoutMs)
+        val doh = resolveDoh(host, timeoutMs, deadline)
         if (doh != null) {
             cache[host] = Entry(doh, System.currentTimeMillis())
             return doh
@@ -105,12 +110,15 @@ object DnsResolver {
     )
 
     // Returns the first IPv4 answer from any DoH endpoint, or null.
-    private fun resolveDoh(host: String, timeoutMs: Int): String? {
-        val deadline = System.currentTimeMillis() + 3000L
+    private fun resolveDoh(host: String, timeoutMs: Int, deadline: Long): String? {
         for ((endpoint, pinIp) in DOH_ENDPOINTS) {
-            if (System.currentTimeMillis() > deadline) break
+            val remaining = (deadline - System.currentTimeMillis()).toInt()
+            if (remaining <= 0) break
+            // queryDohJson may try a pinned socket and then HTTP — halve the
+            // remaining budget so both attempts still fit the deadline.
             try {
-                val ip = queryDohJson(endpoint, pinIp, host, timeoutMs.coerceAtMost(1500))
+                val ip = queryDohJson(endpoint, pinIp, host,
+                    minOf(timeoutMs, 1500, maxOf(200, remaining / 2)))
                 if (ip != null) return ip
             } catch (_: Exception) {
                 // Try next endpoint.

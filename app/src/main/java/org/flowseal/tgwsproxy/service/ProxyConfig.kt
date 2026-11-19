@@ -98,6 +98,15 @@ class ProxyConfig(context: Context) {
         get() = prefs.getBoolean("use_cf_proxy", true)
         set(value) = prefs.edit().putBoolean("use_cf_proxy", value).apply()
 
+    /**
+     * Disable TLS for Cloudflare proxy / worker connections (port 80 instead
+     * of 443). Mirrors the desktop "no_secure" option: some networks throttle
+     * or block the TLS handshake, which shows up as repeated read timeouts.
+     */
+    var noSecure: Boolean
+        get() = prefs.getBoolean("no_secure", false)
+        set(value) = prefs.edit().putBoolean("no_secure", value).apply()
+
     var cfProxyDomain: String
         // Sanitize on read: users sometimes paste "proxy://domain", "wss://domain/path"
         // etc. — anything scheme/path-like must not leak into "kws{dc}.{domain}".

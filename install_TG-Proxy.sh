@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# TG-Proxy — установка / запуск для Debian / Ubuntu (и других Linux)
+# TgProxy — установка / запуск для Debian / Ubuntu (и других Linux)
 #
-# Скрипт сам скачивает последнюю версию TG-Proxy с GitHub Releases
+# Скрипт сам скачивает последнюю версию TgProxy с GitHub Releases
 # и устанавливает её:
 #   * бинарник -> ~/.local/share/tg-proxy/            (или /opt/tg-proxy, если запущен от root)
 #   * иконка   -> ~/.local/share/icons/hicolor/256x256/apps/
@@ -18,15 +18,15 @@
 #   ./install.sh                    # скачать последний релиз и установить
 #   ./install.sh install            # то же самое
 #   ./install.sh run                # скачать последний релиз и сразу запустить (без установки)
-#   ./install.sh install ./TG-Proxy-1.2.3-Linux   # установить уже скачанный файл
-#   ./install.sh run    ./TG-Proxy-1.2.3-Linux   # запустить уже скачанный файл
+#   ./install.sh install ./TgProxy-1.2.10-Linux   # установить уже скачанный файл
+#   ./install.sh run    ./TgProxy-1.2.10-Linux   # запустить уже скачанный файл
 #   ./install.sh uninstall          # удалить установленную копию
 #   ./install.sh --service          # дополнительно установить headless systemd-сервис
 #   ./install.sh --tg               # дополнительно установить/обновить Telegram Desktop
 #
 set -euo pipefail
 
-APP_NAME="TG-Proxy"
+APP_NAME="TgProxy"
 BIN_NAME="tg-proxy"
 REPO="Gegaremant/TG-Proxy"
 TD_REPO="telegramdesktop/tdesktop"
@@ -73,7 +73,7 @@ fi
 
 # ---------- Скачивание ----------
 download_bin() {
-  step "1/3. Скачивание TG-Proxy"
+  step "1/3. Скачивание TgProxy"
   command -v curl >/dev/null 2>&1 || die \
     "Не найден curl. Установите: sudo apt install -y curl"
 
@@ -98,7 +98,7 @@ download_bin() {
   # Имя Linux-бинарника из списка файлов релиза (HTML-эндпоинт expanded_assets)
   ASSET_NAME=$(curl -fsSL \
     "https://github.com/$REPO/releases/expanded_assets/$TAG" 2>/dev/null \
-    | grep -oE 'TG-Proxy-[^"<]*Linux' | grep -v '\.dmg' | head -1)
+    | grep -oE 'TgProxy-[^"<]*Linux' | grep -v '\.dmg' | head -1)
   [[ -n "$ASSET_NAME" ]] || die "Не найден Linux-бинарник в последнем релизе."
 
   FILE="$DOWNLOAD_DIR/$ASSET_NAME"
@@ -180,7 +180,7 @@ do_install() {
   cat >"$DESKTOP_DIR/tg-proxy.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=YaProFun©TgProxy
+Name=TgProxy
 Comment=MTProto WebSocket Proxy для Telegram (FakeTLS)
 Exec="$INSTALL_DIR/tg-proxy" %U
 Icon=$ICON_DIR/tg-proxy.png
@@ -194,14 +194,14 @@ EOF
 
   # Автозапуск при входе в систему
   if [[ "$MODE" == "install" ]] && [[ -t 0 ]]; then
-    printf '\033[1;36mВключить автозапуск TG Proxy при входе в систему? [Y/n]: \033[0m'
+    printf '\033[1;36mВключить автозапуск TgProxy при входе в систему? [Y/n]: \033[0m'
     read -r answer
     case "$answer" in
       n|N|no|No) : ;;
       *) cat >"$AUTOSTART_DIR/tg-proxy.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=YaProFun©TgProxy
+Name=TgProxy
 Exec="$INSTALL_DIR/tg-proxy"
 Icon=$ICON_DIR/tg-proxy.png
 Terminal=false
@@ -243,7 +243,7 @@ EOF
     echo "    Затем: source ~/.bashrc"
   fi
   echo ""
-  echo "  Запуск из меню приложений:  TG Proxy"
+  echo "  Запуск из меню приложений:  TgProxy"
   echo "  Запуск из терминала:        $BIN_NAME"
   echo "  Установлен:                 $INSTALL_DIR/tg-proxy"
   if [[ "$WITH_SERVICE" -eq 1 ]]; then
@@ -276,7 +276,7 @@ install_service() {
   install -m 755 "$svc" "$INSTALL_DIR/TG-Proxy-Service"
   cat >/etc/systemd/system/tg-proxy.service <<EOF
 [Unit]
-Description=YaProFun©TgProxy (headless WebSocket proxy for Telegram)
+Description=TgProxy (headless WebSocket proxy for Telegram)
 After=network-online.target
 Wants=network-online.target
 
@@ -403,7 +403,7 @@ do_uninstall() {
     rm -f /etc/systemd/system/tg-proxy.service
     systemctl daemon-reload
   fi
-  log "TG-Proxy удалён."
+  log "TgProxy удалён."
 }
 
 case "$MODE" in

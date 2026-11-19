@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=YaProFun©TgProxy
+Name=TgProxy
 Comment=Telegram MTProto WebSocket Proxy
 Exec=/opt/tg-proxy/TG-Proxy
 Icon=tg-proxy

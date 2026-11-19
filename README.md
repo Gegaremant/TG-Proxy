@@ -1,15 +1,17 @@
-﻿# TG-Proxy (от Gegaremant labs)
+﻿# TgProxy (от Gegaremant labs)
+
+*Build between dreaming and waking, forged in a daring union of human and machine. Рождено на грани сна и яви в дерзком союзе человека и машины.*
 
 ![TG-Proxy Logo](TG2.jpg)
 
 [English Version / Английская версия](README_en.md)
 
 ### ⬇️ Скачать для своей ОС
-[![Windows](https://img.shields.io/badge/Windows-1.2.9-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.9-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.9-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.9-MAC.dmg)
+[![Windows](https://img.shields.io/badge/Windows-1.2.10-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.10-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-MAC.dmg)
 
-[![Linux](https://img.shields.io/badge/Linux-1.2.9-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.9-Linux) [![Android](https://img.shields.io/badge/Android-1.2.9-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.9-Android.apk)
+[![Linux](https://img.shields.io/badge/Linux-1.2.10-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Linux) [![Android](https://img.shields.io/badge/Android-1.2.10-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Android.apk)
 
-**YaProFun©TgProxy** — это единое кроссплатформенное приложение для обхода блокировок Telegram на основе MTProto WebSocket Proxy с поддержкой FakeTLS. Оно объединяет в себе версии для **Android**, **Windows**, **macOS** и **Linux** под одним капотом, предлагая единый стильный интерфейс и одинаковый набор функций на всех платформах.
+**TgProxy** — это единое кроссплатформенное приложение для обхода блокировок Telegram на основе MTProto WebSocket Proxy с поддержкой FakeTLS. Оно объединяет в себе версии для **Android**, **Windows**, **macOS** и **Linux** под одним капотом, предлагая единый стильный интерфейс и одинаковый набор функций на всех платформах.
 
 [⬇️ СКАЧАТЬ LATEST RELEASE (ПОСЛЕДНЮЮ ВЕРСИЮ)](https://github.com/Gegaremant/TG-Proxy/releases/latest)
 
@@ -22,7 +24,7 @@
 введения постоянного ключа подписи). Обычное удаление не всегда убирает
 все профили/клоны:
 
-1. **Настройки → Приложения → TG-Proxy → Удалить** (если есть кнопка
+1. **Настройки → Приложения → TgProxy → Удалить** (если есть кнопка
    «Удалить для всех пользователей» — выбирайте её).
 2. Проверьте клоны приложений: **«Двойные приложения» / «Второе
    пространство» / «Secure Folder» / «Защищённая папка»** — там может
@@ -55,6 +57,19 @@ One UI и др.) — пункты чек-листа с кнопкой «Откр
 экраны.
 </details>
 
+<details>
+<summary>В логах «CF connect failed: SocketTimeoutException: Read timed out», «all routes failed», «WS cooldown»</summary>
+
+Это заблокированное или задушенное TLS-рукопожатие к Cloudflare. Откройте
+настройки и включите **«Выключить TLS для CF-прокси и CF-worker»** — соединение
+пойдёт на 80-м порту в открытом виде. Содержимое переписки по-прежнему защищено
+MTProto; провайдер увидит только метаданные подключения к Cloudflare.
+
+Начиная с 1.2.10 таймауты connect/read разделены, DNS укладывается в общий
+бюджет, а кулдауны и число попыток ограничены — «вечный» кулдаун после первого
+же сбоя больше не воспроизводится.
+</details>
+
 > **Дисклеймер:** Данный проект создан в исследовательских целях в качестве тренировки по программированию. Он является авторским видением и, по сути, эссенцией и форком лучших наработок оригинальных репозиториев: [https://github.com/Flowseal/tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy) и [https://github.com/ihtfw/tg-ws-proxy-android](https://github.com/ihtfw/tg-ws-proxy-android).
 
 ## Возможности
@@ -72,7 +87,7 @@ One UI и др.) — пункты чек-листа с кнопкой «Откр
 ## Сборка из исходников
 Для вашего удобства в проекте настроены GitHub Actions (`.github/workflows`), которые автоматически собирают APK-файл для Android и исполняемые файлы для настольных операционных систем при каждом push'е в ветку `main`.
 
-> 📦 **На странице каждого релиза** помимо бинарников TG-Proxy находятся:
+> 📦 **На странице каждого релиза** помимо бинарников TgProxy находятся:
 > установщик `install_TG-Proxy.sh` и актуальные официальные сборки **Telegram Desktop**
 > (`td-setup-linux-x64-*.tar.xz`, `td-setup-win-x64-*.exe`, `td-setup-mac-*.dmg`).
 > А `install_TG-Proxy.sh` после запуска может **установить/обновить TG Desktop одной

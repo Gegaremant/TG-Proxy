@@ -1,10 +1,17 @@
-﻿# TG-Proxy (by Gegaremant labs)
+﻿# TgProxy (by Gegaremant labs)
+
+*Build between dreaming and waking, forged in a daring union of human and machine. Рождено на грани сна и яви в дерзком союзе человека и машины.*
 
 ![TG-Proxy Logo](5.jpg)
 
 [Русская версия / Russian Version](README.md)
 
-**YaProFun©TgProxy** is a unified, cross-platform Telegram MTProto WebSocket Proxy with FakeTLS support designed to bypass censorship and DPI. It bundles versions for **Android**, **Windows**, **macOS**, and **Linux** under a single umbrella, offering a stylish, consistent user interface and identical features across all platforms.
+**TgProxy** is a unified, cross-platform Telegram MTProto WebSocket Proxy with FakeTLS support designed to bypass censorship and DPI. It bundles versions for **Android**, **Windows**, **macOS**, and **Linux** under a single umbrella, offering a stylish, consistent user interface and identical features across all platforms.
+
+### ⬇️ Download for your OS
+[![Windows](https://img.shields.io/badge/Windows-1.2.10-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.10-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-MAC.dmg)
+
+[![Linux](https://img.shields.io/badge/Linux-1.2.10-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Linux) [![Android](https://img.shields.io/badge/Android-1.2.10-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Android.apk)
 
 [⬇️ DOWNLOAD LATEST RELEASE](https://github.com/Gegaremant/TG-Proxy/releases/latest)
 
@@ -16,7 +23,7 @@
 An older build signed with a different key is still present on the device.
 A plain uninstall does not always remove every profile/clone:
 
-1. **Settings → Apps → TG-Proxy → Uninstall** (prefer "Uninstall for all
+1. **Settings → Apps → TgProxy → Uninstall** (prefer "Uninstall for all
    users" if offered).
 2. Check app clones: **"Dual apps" / "Second space" / "App cloner" /
    "Secure Folder"** — a hidden copy may live there; remove it too.
@@ -44,6 +51,19 @@ is running) walks you through:
 
 Wording differs across shells (HyperOS, ColorOS, One UI, etc.) — each
 checklist row opens the right screen.
+</details>
+
+<details>
+<summary>Logs show "CF connect failed: SocketTimeoutException: Read timed out", "all routes failed", "WS cooldown"</summary>
+
+This means the TLS handshake to Cloudflare is blocked or throttled. Open the
+settings and enable **"Disable TLS for CF-proxy and CF-worker"** — connections
+then use plain HTTP on port 80. Telegram traffic is still protected by MTProto;
+only the connection metadata to Cloudflare becomes visible to the provider.
+
+Since 1.2.10 connect and read timeouts are separate, DNS shares one deadline,
+and cooldowns/attempt counts are bounded — a single failure no longer locks the
+proxy in a permanent cooldown.
 </details>
 
 > **Disclaimer:** This project was created for research and educational programming purposes. It is an author's vision and essentially a fork and essence of the best practices and codebases from the original repositories: [https://github.com/Flowseal/tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy) and [https://github.com/ihtfw/tg-ws-proxy-android](https://github.com/ihtfw/tg-ws-proxy-android).

@@ -1,8 +1,8 @@
 {
-  "app.name": "YaProFun©TgProxy",
-  "app.error_title": "YaProFun©TgProxy — Error",
-  "app.settings_title": "YaProFun©TgProxy — Settings",
-  "app.update_title": "YaProFun©TgProxy — Update",
+  "app.name": "TgProxy",
+  "app.error_title": "TgProxy — Error",
+  "app.settings_title": "TgProxy — Settings",
+  "app.update_title": "TgProxy — Update",
 
   "language.ru": "Русский",
   "language.en": "English",
@@ -53,7 +53,7 @@
   "tip.buf_kb": "Receive/send buffer size in kilobytes.\nA larger value allocates more memory per socket",
   "tip.pool": "How many ready WebSocket connections to keep per data center.\n0 disables the direct DC->IP WebSocket route",
   "tip.log_mb": "Maximum log file size; the file is overwritten when the limit is reached",
-  "tip.autostart": "Launch YaProFun©TgProxy on Windows login. If you move the app to another folder, autostart will reset",
+  "tip.autostart": "Launch TgProxy on Windows login. If you move the app to another folder, autostart will reset",
   "tip.check_updates": "Check for updates on startup",
   "tip.cfproxy": "Use Cloudflare proxy for unreachable data centers",
   "tip.cfproxy_domain": "Your own domains proxied through Cloudflare for HTTP/2 and WS connections.\nSeparate multiple domains with commas.\nIf empty — chosen automatically from supported domains",

@@ -33,10 +33,12 @@ def _proc_mode(proc) -> Optional[str]:
     if "tg-ws-proxy" in joined:
         return SERVICE_MODE
 
-    # GUI frozen binary: TG-Proxy-1.0.5-Linux (name or full path).
-    if "tg-proxy" in name and "linux" in name:
+    # GUI frozen binary: TgProxy-1.2.10-Linux (also accept the legacy
+    # TG-Proxy-1.x.x-Linux name so an older build is still detected).
+    gui_names = ("tgproxy", "tg-proxy")
+    if any(n in name for n in gui_names) and "linux" in name:
         return GUI_MODE
-    if "tg-proxy" in joined and "linux" in joined:
+    if any(n in joined for n in gui_names) and "linux" in joined:
         return GUI_MODE
     # GUI source run: python linux.py
     if "/linux.py" in joined or " linux.py" in joined:
@@ -48,7 +50,7 @@ def _proc_mode(proc) -> Optional[str]:
 def running_modes() -> Dict[str, List[int]]:
     """
     Scan running processes and return a mapping mode -> list of PIDs for any
-    YaProFun©TgProxy instances found (GUI and/or service).
+    TgProxy instances found (GUI and/or service).
     """
     result: Dict[str, List[int]] = {}
     try:
@@ -89,7 +91,7 @@ def any_running() -> bool:
 
 
 def describe_running() -> str:
-    """Human-readable summary of which YaProFun©TgProxy instances are running."""
+    """Human-readable summary of which TgProxy instances are running."""
     modes = running_modes()
     if not modes:
         return ""

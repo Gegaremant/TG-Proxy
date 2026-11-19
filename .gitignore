@@ -23,6 +23,7 @@ CLAUDE.md
 trash/
 
 # Build artifacts
+TgProxy-*.apk
 TG-Proxy-*.apk
 
 # Local copies of third-party binaries (Telegram Desktop etc.)

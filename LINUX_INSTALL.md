@@ -1,11 +1,11 @@
-# Установка и запуск YaProFun©TgProxy на Linux
+# Установка и запуск TgProxy на Linux
 
 `install_TG-Proxy.sh` — универсальный установщик: **сам скачивает последний релиз** с GitHub,
 определяет типы окружения (root/пользователь, X11/Wayland) и ставит всё необходимое.
 
 ## 1. Установка (быстро)
 
-Скачайте со страницы релизов **`install_TG-Proxy.sh`** (или вместе с ним `TG-Proxy-1.x.x-Linux`)
+Скачайте со страницы релизов **`install_TG-Proxy.sh`** (или вместе с ним `TgProxy-1.x.x-Linux`)
 и выполните:
 
 ```bash
@@ -17,7 +17,7 @@ sudo ./install_TG-Proxy.sh       # установит системно в /opt/t
 
 Скрипт:
 - определяет последнюю версию и скачивает Linux-бинарник (**если файл уже рядом — использует его**);
-- устанавливает бинарник, иконку и пункт меню **YaProFun©TgProxy**;
+- устанавливает бинарник, иконку и пункт меню **TgProxy**;
 - создаёт команду запуска из терминала: `tg-proxy`;
 - **спрашивает**, включить ли автозапуск при входе в систему;
 - с `--service` дополнительно ставит headless-прокси как systemd-сервис;
@@ -28,7 +28,7 @@ sudo ./install_TG-Proxy.sh       # установит системно в /opt/t
 
 ```bash
 ./install_TG-Proxy.sh run                                  # скачать и сразу запустить (без установки)
-./install_TG-Proxy.sh install ./TG-Proxy-1.2.4-Linux       # установить уже скачанный файл
+./install_TG-Proxy.sh install ./TgProxy-1.2.10-Linux      # установить уже скачанный файл
 ./install_TG-Proxy.sh uninstall                            # удалить установленную копию
 sudo ./install_TG-Proxy.sh --service                       # + headless systemd-сервис (нужен root)
 ./install_TG-Proxy.sh --tg                                 # + установить/обновить Telegram Desktop
@@ -40,7 +40,7 @@ sudo ./install_TG-Proxy.sh --service                       # + headless systemd-
 
 | Бинарник | Назначение |
 |----------|-----------|
-| `TG-Proxy-1.2.4-Linux` | GUI-версия с трей-иконкой (для рабочего стола) |
+| `TgProxy-1.2.10-Linux` | GUI-версия с трей-иконкой (для рабочего стола) |
 | `TG-Proxy-Service` | Headless CLI-версия (для systemd-сервиса, без GUI) |
 
 Подготовка (нужен Python 3.11+ и PyInstaller):
@@ -68,10 +68,10 @@ pyinstaller packaging/linux-service.spec
 ## 3. Запуск GUI (трей-иконка)
 
 ```bash
-/opt/tg-proxy/TG-Proxy
+/opt/tg-proxy/tg-proxy
 ```
 
-Или через меню приложений → **YaProFun©TgProxy**. После запуска иконка появляется в системном трее:
+Или через меню приложений → **TgProxy**. После запуска иконка появляется в системном трее:
 - ЛКМ — открыть прокси в Telegram;
 - ПКМ — копировать ссылку, перезапустить, настройки, логи, выход.
 
@@ -90,7 +90,7 @@ pyinstaller packaging/linux-service.spec
 * **Запуск службы при работающем GUI** — headless-бинарник выводит предупреждение в лог
   о конфликте порта, если GUI уже запущен.
 
-Определение режима основано на сканировании процессов: GUI (`TG-Proxy*Linux`/
+Определение режима основано на сканировании процессов: GUI (`TgProxy*Linux`, старые `TG-Proxy*Linux`/
 `linux.py`) и сервис (`TG-Proxy-Service`/`tg_ws_proxy.py`). Код находится в
 `utils/runtime_mode.py`.
 

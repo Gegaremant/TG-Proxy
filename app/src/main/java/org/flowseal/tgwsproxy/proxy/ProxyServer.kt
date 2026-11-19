@@ -23,6 +23,7 @@ class ProxyServer(
     private val secret: String,
     private val fakeTlsDomain: String,
     private val useCfProxy: Boolean = false,
+    private val noSecure: Boolean = false,
     private val cfProxyDomain: String = "",
     private val cfWorkerDomain: String = "",
     private val upstreamProxy: String = "",
@@ -50,17 +51,29 @@ class ProxyServer(
 
     private val wsBlacklist = ConcurrentHashMap.newKeySet<Pair<Int, Boolean>>()
     private val dcFailUntil = ConcurrentHashMap<Pair<Int, Boolean>, Long>()
-    private val DC_FAIL_COOLDOWN = 60_000L
-    private val WS_FAIL_TIMEOUT = 5000
+
+    // Short pause between total route failures. It must stay short: the old
+    // combination of a 60s cooldown and a *shortened* timeout during that
+    // cooldown made recovery impossible (every retry failed again).
+    private val DC_FAIL_COOLDOWN = 10_000L
 
     // CF endpoint health thresholds (see bridgeWsReencrypt).
     private val EARLY_CLOSE_MS = 15_000L
     private val EARLY_CLOSE_MIN_BYTES = 100L * 1024
     private val HEALTHY_LIFETIME_MS = 60_000L
 
-    // Connect timeout for the CF-proxy pool: half of the public domains are
-    // unreachable, so a failed attempt must not block the client for 10s.
-    private val CF_CONNECT_TIMEOUT_MS = 5000
+    // Separate connect/read budgets: a dead IP must fail fast, but the TLS
+    // handshake and the HTTP 101 response need a realistic read window.
+    // One shared timeout caused mass "Read timed out" errors on CF domains.
+    private val CF_CONNECT_TIMEOUT_MS = 5_000
+    private val CF_READ_TIMEOUT_MS = 12_000
+    private val DIRECT_CONNECT_TIMEOUT_MS = 5_000
+    private val DIRECT_READ_TIMEOUT_MS = 12_000
+
+    // One client connection must not walk the entire (~20 domain) CF pool:
+    // that could take minutes and always ended with "all routes failed".
+    private val CF_ROUTE_MAX_ATTEMPTS = 6
+    private val CF_ROUTE_BUDGET_MS = 30_000L
 
     private val bufSize = bufKb * 1024
     
@@ -301,8 +314,15 @@ class ProxyServer(
                 return
             }
 
+            // A short cooldown after a total route failure gives the network
+            // time to recover. Timeouts stay unchanged so the first retry
+            // after the pause gets a full chance to succeed.
             val failUntil = dcFailUntil[dcKey] ?: 0L
-            val wsTimeout = if (now < failUntil) WS_FAIL_TIMEOUT else 10000
+            if (now < failUntil) {
+                Log.d(TAG, "[$label] DC$dc$mediaTag cooldown, ${(failUntil - now) / 1000}s left")
+                client.close()
+                return
+            }
 
             val domains = TelegramDC.wsDomains(dc, isMedia)
             var ws: RawWebSocket? = null
@@ -318,11 +338,18 @@ class ProxyServer(
                 Log.d(TAG, "[$label] DC$dc$mediaTag no configured IP -> CF fallback")
             }
 
+            val wsScheme = if (noSecure) "ws" else "wss"
             if (useCfProxy && cfProxyDomain.isNotBlank()) {
                 val cfDomain = "kws$dc.$cfProxyDomain"
-                log("[$label] DC$dc$mediaTag -> CF Proxy wss://$cfDomain/apiws")
+                log("[$label] DC$dc$mediaTag -> CF Proxy $wsScheme://$cfDomain/apiws")
                 try {
-                    ws = RawWebSocket.connect(cfDomain, cfDomain, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                    ws = RawWebSocket.connect(
+                        cfDomain, cfDomain,
+                        connectTimeoutMs = CF_CONNECT_TIMEOUT_MS,
+                        readTimeoutMs = CF_READ_TIMEOUT_MS,
+                        socks5Proxy = upstreamProxy,
+                        secure = !noSecure
+                    )
                     cfBaseUsed = cfProxyDomain
                     allRedirects = false
                 } catch (e: Exception) {
@@ -335,9 +362,15 @@ class ProxyServer(
                 val workerPath = "/apiws?dst=$target&dc=$dc"
                 val workerHost = cfWorkerDomain.trim()
                     .removePrefix("wss://").removePrefix("https://")
-                log("[$label] DC$dc$mediaTag -> CF Worker wss://$workerHost$workerPath")
+                log("[$label] DC$dc$mediaTag -> CF Worker $wsScheme://$workerHost$workerPath")
                 try {
-                    ws = RawWebSocket.connect(workerHost, workerHost, path = workerPath, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                    ws = RawWebSocket.connect(
+                        workerHost, workerHost, path = workerPath,
+                        connectTimeoutMs = CF_CONNECT_TIMEOUT_MS,
+                        readTimeoutMs = CF_READ_TIMEOUT_MS,
+                        socks5Proxy = upstreamProxy,
+                        secure = !noSecure
+                    )
                     allRedirects = false
                     stats.connectionsCfProxy.incrementAndGet()
                 } catch (e: Exception) {
@@ -350,13 +383,30 @@ class ProxyServer(
             // CF-пул (wss://kws{dc}.{cfdomain}/apiws). В CF-режиме пробуем его
             // раньше прямого WS к сырому IP — это обходит блокировку IP по TCP.
             if (ws == null && useCfProxy) {
+                val cfDeadline = System.currentTimeMillis() + CF_ROUTE_BUDGET_MS
+                var attempts = 0
                 for (cfHost in TelegramDC.cfWsEndpoints(dc, isMedia)) {
-                    log("[$label] DC$dc$mediaTag -> CF wss://$cfHost/apiws")
+                    if (attempts >= CF_ROUTE_MAX_ATTEMPTS ||
+                        System.currentTimeMillis() >= cfDeadline) {
+                        log("[$label] DC$dc$mediaTag CF route budget exhausted after $attempts attempt(s)")
+                        break
+                    }
+                    attempts++
+                    // Spend at most the remaining budget on this attempt, so
+                    // one slow domain cannot consume the entire client wait.
+                    val remaining = (cfDeadline - System.currentTimeMillis()).toInt()
+                    val attemptConnect = minOf(CF_CONNECT_TIMEOUT_MS, maxOf(500, remaining / 3))
+                    val attemptRead = minOf(CF_READ_TIMEOUT_MS, maxOf(1000, remaining - attemptConnect))
+                    log("[$label] DC$dc$mediaTag -> CF $wsScheme://$cfHost/apiws")
                     val cfBase = cfHost.substringAfter('.', cfHost)
                     try {
-                        // Короткий таймаут: половина публичных доменов мертва,
-                        // и каждая попытка не должна стоить 10 секунд.
-                        ws = RawWebSocket.connect(cfHost, cfHost, timeoutMs = CF_CONNECT_TIMEOUT_MS, socks5Proxy = upstreamProxy)
+                        ws = RawWebSocket.connect(
+                            cfHost, cfHost,
+                            connectTimeoutMs = attemptConnect,
+                            readTimeoutMs = attemptRead,
+                            socks5Proxy = upstreamProxy,
+                            secure = !noSecure
+                        )
                         cfBaseUsed = cfBase
                         allRedirects = false
                         stats.connectionsCfProxy.incrementAndGet()
@@ -392,7 +442,12 @@ class ProxyServer(
                         val url = "wss://$domain/apiws"
                         log("[$label] DC$dc$mediaTag -> $url via $target")
                         try {
-                            ws = RawWebSocket.connect(target, domain, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                            ws = RawWebSocket.connect(
+                                target, domain,
+                                connectTimeoutMs = DIRECT_CONNECT_TIMEOUT_MS,
+                                readTimeoutMs = DIRECT_READ_TIMEOUT_MS,
+                                socks5Proxy = upstreamProxy
+                            )
                             allRedirects = false
                             break
                         } catch (e: WsHandshakeError) {
@@ -414,7 +469,12 @@ class ProxyServer(
                             log("[$label] DC$dc$mediaTag WS connect via $target failed: $e")
                             try {
                                 log("[$label] DC$dc$mediaTag -> retry $url via domain-resolved IP")
-                                ws = RawWebSocket.connect(domain, domain, timeoutMs = wsTimeout, socks5Proxy = upstreamProxy)
+                                ws = RawWebSocket.connect(
+                                    domain, domain,
+                                    connectTimeoutMs = DIRECT_CONNECT_TIMEOUT_MS,
+                                    readTimeoutMs = DIRECT_READ_TIMEOUT_MS,
+                                    socks5Proxy = upstreamProxy
+                                )
                                 if (ws != null) {
                                     log("[$label] DC$dc$mediaTag -> direct WS ok via domain-resolved IP")
                                     break

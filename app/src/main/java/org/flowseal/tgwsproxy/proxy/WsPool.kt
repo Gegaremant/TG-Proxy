@@ -23,7 +23,9 @@ class WsPool(
         // Exponential refill backoff: a blocked DC IP must not be hammered with
         // 8-second connect attempts on every client connection.
         private const val REFILL_BACKOFF_INITIAL_MS = 1_000L
-        private const val REFILL_BACKOFF_MAX_MS = 60_000L
+        // Long backoffs turned a burst of network blips into minutes of dead
+        // proxy: keep retrying, just not on every client connection.
+        private const val REFILL_BACKOFF_MAX_MS = 15_000L
     }
 
     private data class PoolEntry(val ws: RawWebSocket, val createdAt: Long)
@@ -116,7 +118,12 @@ class WsPool(
         // whole attempt (this was the old behaviour and it left the pool empty).
         for (domain in domains) {
             try {
-                return RawWebSocket.connect(targetIp, domain, timeoutMs = 8000, socks5Proxy = socks5Proxy)
+                return RawWebSocket.connect(
+                    targetIp, domain,
+                    connectTimeoutMs = 5_000,
+                    readTimeoutMs = 10_000,
+                    socks5Proxy = socks5Proxy
+                )
             } catch (e: WsHandshakeError) {
                 // Try the next domain in any case (redirect OR error): one dead
                 // endpoint must not abort the whole attempt.

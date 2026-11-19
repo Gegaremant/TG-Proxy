@@ -151,7 +151,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='TG-Proxy-1.2.9-Linux',
+    name='TgProxy-1.2.10-Linux',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,

@@ -123,6 +123,7 @@ class ProxyService : Service() {
             secret = config.secret,
             fakeTlsDomain = config.fakeTlsDomain,
             useCfProxy = config.useCfProxy,
+            noSecure = config.noSecure,
             cfProxyDomain = config.cfProxyDomain,
             cfWorkerDomain = config.cfWorkerDomain,
             upstreamProxy = config.upstreamProxy,
@@ -133,7 +134,7 @@ class ProxyService : Service() {
         )
         proxyServer!!.start()
         val actualPort = proxyServer!!.boundPort
-        addLog("Config: host=127.0.0.1 port=$actualPort fakeTls=${config.fakeTlsDomain} cf=${config.useCfProxy}")
+        addLog("Config: host=127.0.0.1 port=$actualPort fakeTls=${config.fakeTlsDomain} cf=${config.useCfProxy} noTls=${config.noSecure}")
         if (config.upstreamProxy.isNotBlank()) {
             addLog("Upstream SOCKS5: ${config.upstreamProxy}")
         }
@@ -183,7 +184,7 @@ class ProxyService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "TG WS Proxy",
+            "TgProxy",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
             description = "Keeps the proxy running in the background"
@@ -219,7 +220,7 @@ class ProxyService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("TG WS Proxy")
+            .setContentTitle("TgProxy")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)

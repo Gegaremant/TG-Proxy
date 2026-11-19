@@ -20,6 +20,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -44,7 +45,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -144,7 +147,7 @@ suspend fun runAutoConfig(
     val bestSni = runSniAutoConfig(config)
     config.fakeTlsDomain = bestSni
 
-    val working = CfDomains.filterWorkingDomains { done, total, domain, ok ->
+    val working = CfDomains.filterWorkingDomains(secure = !config.noSecure) { done, total, domain, ok ->
         onProgress("$done/$total $domain: ${if (ok) "ok" else "fail"}")
     }
     if (working.isNotEmpty()) {
@@ -663,13 +666,23 @@ fun MainScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "YaProFun©TgProxy",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontSize = 13.sp
-                    )
+                    Column {
+                        Text(
+                            "YaProFun©TgProxy",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            stringResource(R.string.app_signature),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 8.sp,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -693,16 +706,26 @@ fun MainScreen(
             )
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            StatusCard(isRunning, statsText, config)
+            Image(
+                painter = painterResource(R.drawable.app_background),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize().alpha(0.18f)
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                StatusCard(isRunning, statsText, config)
 
             var isStarting by remember { mutableStateOf(false) }
             var isAutoConfiguring by remember { mutableStateOf(false) }
@@ -937,6 +960,7 @@ fun MainScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp
             )
+            }
         }
     }
 }
@@ -1095,6 +1119,7 @@ fun SettingsPanel(
             }
 
             var useCfProxy by remember { mutableStateOf(config.useCfProxy) }
+            var noSecure by remember { mutableStateOf(config.noSecure) }
             var cfProxyDomain by remember { mutableStateOf(config.cfProxyDomain) }
             var cfWorkerDomain by remember { mutableStateOf(config.cfWorkerDomain) }
             var dnsServers by remember { mutableStateOf(config.dnsServers) }
@@ -1127,6 +1152,17 @@ fun SettingsPanel(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(stringResource(R.string.no_secure))
+                    Switch(
+                        checked = noSecure,
+                        onCheckedChange = { noSecure = it }
+                    )
+                }
             }
 
             OutlinedTextField(
@@ -1194,6 +1230,7 @@ fun SettingsPanel(
                     config.autoConnect = autoConnect
                     config.autostart = autostart
                     config.useCfProxy = useCfProxy
+                    config.noSecure = noSecure
                     config.cfProxyDomain = cfProxyDomain
                     config.cfWorkerDomain = cfWorkerDomain
                     config.dnsServers = dnsServers
