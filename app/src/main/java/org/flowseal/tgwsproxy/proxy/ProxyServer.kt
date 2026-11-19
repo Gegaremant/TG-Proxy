@@ -228,8 +228,16 @@ class ProxyServer(
                     client.close()
                     return
                 }
-                
-                val serverHello = FakeTls.buildServerHello(secretBytes, tlsResult.clientRandom, tlsResult.sessionId)
+
+                val firstSeen = FakeTls.firstClientHelloSeen(tlsResult.clientRandom)
+                if (!firstSeen) {
+                    Log.d(TAG, "[$label] Fake TLS hello replayed")
+                    client.close()
+                    return
+                }
+
+                val clientHelloInfo = FakeTls.parseClientHello(clientHello)
+                val serverHello = FakeTls.buildServerHello(secretBytes, tlsResult.clientRandom, tlsResult.sessionId, clientHelloInfo)
                 rawOutput.write(serverHello)
                 rawOutput.flush()
                 
