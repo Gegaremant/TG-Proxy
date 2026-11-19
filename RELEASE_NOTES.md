@@ -1,4 +1,27 @@
-﻿# Release 1.2.8
+﻿# Release 1.2.9
+
+## Слияние с upstream (Flowseal/tg-ws-proxy v1.11.4)
+
+* Влит актуальный код upstream (v1.11.2 -> v1.11.4, ~25 коммитов):
+  - Fake TLS: переписывание ServerHello (зеркалим key share клиента, выбираем
+    cipher suite из его offer, профилируем первую запись AppData) — fixes #1473;
+  - Fake TLS: маскируем повторённый ClientHello (replay cache) — #1532;
+  - удаление X25519MLKEM768 из опциональных групп;
+  - восстановление совместимости с Windows 7;
+  - event loop guard для Proactor, drain «плохого» handshake с таймаутом,
+    лог-формат и verbose-логи, fix stale sockets после WinError,
+    защита от зависания при самообновлении, debug-логи CfWorkerPool;
+  - Docker: `--no-secure` для Cloudflare Worker fallback.
+
+## Fake TLS: Android в parity с upstream
+
+* Kotlin-мirror (`app/src/main/java/org/flowseal/tgwsproxy/proxy/FakeTls.kt`)
+  обновлён тем же переписыванием ServerHello: динамическое построение,
+  зеркалим key share, cipher selection, appdata len, replay cache.
+
+## Все форк-фичи (Android, Fake TLS, Auto Config, runtime_mode) сохранены.
+
+# Release 1.2.8
 
 ## Android: HiOS (Tecno/Infinix/Itel) — фон не работает после ухода с экрана
 
