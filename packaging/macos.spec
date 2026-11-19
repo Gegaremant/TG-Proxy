@@ -90,12 +90,12 @@ coll = COLLECT(
 
 app = BUNDLE(
     coll,
-    name='TG FREE with 🖤 From KatYa && Gegaremant.app',
+    name='YaProFun©TgProxy.app',
     icon=icon_path,
     bundle_identifier='com.tgwsproxy.app',
     info_plist={
-        'CFBundleName': 'TG FREE with 🖤 From KatYa && Gegaremant',
-        'CFBundleDisplayName': 'TG FREE with 🖤 From KatYa && Gegaremant',
+        'CFBundleName': 'YaProFun©TgProxy',
+        'CFBundleDisplayName': 'YaProFun©TgProxy',
         'CFBundleShortVersionString': '1.2.9',
         'CFBundleVersion': '1.2.9',
         'LSMinimumSystemVersion': '10.15',

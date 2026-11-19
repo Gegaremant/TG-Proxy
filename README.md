@@ -9,7 +9,7 @@
 
 [![Linux](https://img.shields.io/badge/Linux-1.2.9-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.9-Linux) [![Android](https://img.shields.io/badge/Android-1.2.9-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TG-Proxy-1.2.9-Android.apk)
 
-**TG-Proxy** — это единое кроссплатформенное приложение для обхода блокировок Telegram на основе MTProto WebSocket Proxy с поддержкой FakeTLS. Оно объединяет в себе версии для **Android**, **Windows**, **macOS** и **Linux** под одним капотом, предлагая единый стильный интерфейс и одинаковый набор функций на всех платформах.
+**YaProFun©TgProxy** — это единое кроссплатформенное приложение для обхода блокировок Telegram на основе MTProto WebSocket Proxy с поддержкой FakeTLS. Оно объединяет в себе версии для **Android**, **Windows**, **macOS** и **Linux** под одним капотом, предлагая единый стильный интерфейс и одинаковый набор функций на всех платформах.
 
 [⬇️ СКАЧАТЬ LATEST RELEASE (ПОСЛЕДНЮЮ ВЕРСИЮ)](https://github.com/Gegaremant/TG-Proxy/releases/latest)
 

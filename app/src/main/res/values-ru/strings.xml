@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">TG WS Proxy</string>
+    <string name="app_name">YaProFun©TgProxy</string>
     <string name="status_running">Статус: ЗАПУЩЕН</string>
     <string name="status_stopped">Статус: ОСТАНОВЛЕН</string>
     <string name="start_proxy">Запустить</string>

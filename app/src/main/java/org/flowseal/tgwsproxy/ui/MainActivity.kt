@@ -664,7 +664,7 @@ fun MainScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "TG FREE with 🖤 From KatYa && Gegaremant",
+                        "YaProFun©TgProxy",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.titleSmall,

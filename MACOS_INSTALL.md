@@ -1,4 +1,4 @@
-# Установка и запуск TG Proxy на macOS
+# Установка и запуск YaProFun©TgProxy на macOS
 
 TG-Proxy собирается в `.dmg`-образ для macOS (Intel и Apple Silicon через
 `osxcross`/нативный `pyinstaller`). Инструкция ниже охватывает оба случая.
@@ -8,7 +8,7 @@ TG-Proxy собирается в `.dmg`-образ для macOS (Intel и Apple 
 1. Скачайте **TG-Proxy-1.2.4-MAC.dmg** со страницы релизов:
    https://github.com/Gegaremant/TG-Proxy/releases/latest
 2. Откройте скачанный `.dmg` (двойной клик).
-3. Перетащите иконку **TG FREE ...app** в папку «Программы».
+3. Перетащите иконку **YaProFun©TgProxy.app** в папку «Программы».
 4. Извлеките образ (ПКМ по иконке на рабочем столе → «Извлечь»).
 
 ## 2. Первый запуск
@@ -17,13 +17,13 @@ TG-Proxy собирается в `.dmg`-образ для macOS (Intel и Apple 
 Program), поэтому macOS будет блокировать его при первом запуске. Чтобы
 разрешить:
 
-* **Способ А (Gatekeeper):** ПКМ по `TG FREE ...app` в папке «Программы» →
+* **Способ А (Gatekeeper):** ПКМ по `YaProFun©TgProxy.app` в папке «Программы» →
   «Открыть» → снова «Открыть» в диалоге.
 * **Способ Б (если не помогло):**
   ```bash
   sudo spctl --master-disable          # отключить Gatekeeper полностью (не рекомендуется)
   # или разово для файла:
-  xattr -d com.apple.quarantine "/Applications/TG FREE ...app"
+  xattr -d com.apple.quarantine "/Applications/YaProFun©TgProxy.app"
   ```
 * **Способ В:** «Системные настройки → Конфиденциальность и безопасность» →
   внизу появится «Программа заблокирована» → «Открыть всё равно».
@@ -45,7 +45,7 @@ Program), поэтому macOS будет блокировать его при �
 # на машине с macOS
 pip install -e .
 pyinstaller packaging/macos.spec
-packaging/dmg/build_dmg.sh "dist/TG FREE ...app" "TG-Proxy" "dist/TG-Proxy-1.2.4-MAC.dmg"
+packaging/dmg/build_dmg.sh "dist/YaProFun©TgProxy.app" "TG-Proxy" "dist/TG-Proxy-1.2.4-MAC.dmg"
 ```
 
 Иконка приложения (.icns) генерируется на лету:
@@ -61,12 +61,12 @@ python macos.py --render-app-icon icon.icns
 `osascript`:
 
 ```bash
-osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/TG FREE ...app", hidden:false}'
+osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/YaProFun©TgProxy.app", hidden:false}'
 ```
 
 ## 6. Удаление
 
 ```bash
-rm -rf "/Applications/TG FREE ...app"
+rm -rf "/Applications/YaProFun©TgProxy.app"
 rm -rf ~/Library/Logs/tg_proxy ~/Library/Application\ Support/TG-Proxy
 ```

@@ -180,7 +180,7 @@ do_install() {
   cat >"$DESKTOP_DIR/tg-proxy.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=TG Proxy
+Name=YaProFun©TgProxy
 Comment=MTProto WebSocket Proxy для Telegram (FakeTLS)
 Exec="$INSTALL_DIR/tg-proxy" %U
 Icon=$ICON_DIR/tg-proxy.png
@@ -201,7 +201,7 @@ EOF
       *) cat >"$AUTOSTART_DIR/tg-proxy.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=TG Proxy
+Name=YaProFun©TgProxy
 Exec="$INSTALL_DIR/tg-proxy"
 Icon=$ICON_DIR/tg-proxy.png
 Terminal=false
@@ -276,7 +276,7 @@ install_service() {
   install -m 755 "$svc" "$INSTALL_DIR/TG-Proxy-Service"
   cat >/etc/systemd/system/tg-proxy.service <<EOF
 [Unit]
-Description=TG Proxy (headless WebSocket proxy for Telegram)
+Description=YaProFun©TgProxy (headless WebSocket proxy for Telegram)
 After=network-online.target
 Wants=network-online.target
 

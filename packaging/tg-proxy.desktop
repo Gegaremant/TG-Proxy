@@ -1,7 +1,7 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=TG Proxy
+Name=YaProFun©TgProxy
 GenericName=Telegram Proxy
 Comment=Telegram MTProto WebSocket Proxy with FakeTLS
 Exec=/opt/tg-proxy/TG-Proxy %U

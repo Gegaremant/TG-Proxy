@@ -4,7 +4,7 @@
 
 [Русская версия / Russian Version](README.md)
 
-**TG-Proxy** is a unified, cross-platform Telegram MTProto WebSocket Proxy with FakeTLS support designed to bypass censorship and DPI. It bundles versions for **Android**, **Windows**, **macOS**, and **Linux** under a single umbrella, offering a stylish, consistent user interface and identical features across all platforms.
+**YaProFun©TgProxy** is a unified, cross-platform Telegram MTProto WebSocket Proxy with FakeTLS support designed to bypass censorship and DPI. It bundles versions for **Android**, **Windows**, **macOS**, and **Linux** under a single umbrella, offering a stylish, consistent user interface and identical features across all platforms.
 
 [⬇️ DOWNLOAD LATEST RELEASE](https://github.com/Gegaremant/TG-Proxy/releases/latest)
 

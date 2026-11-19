@@ -595,6 +595,6 @@ def bootstrap(cfg: dict) -> None:
         cfg.get("verbose", False),
         log_max_mb=cfg.get("log_max_mb", DEFAULT_CONFIG["log_max_mb"]),
     )
-    log.info("TG FREE версия %s starting", __version__)
+    log.info("YaProFun©TgProxy версия %s starting", __version__)
     log.info("Config: %s", cfg)
     log.info("Log file: %s", LOG_FILE)

@@ -23,6 +23,7 @@ jobs:
 
     - name: Resolve release version from tag
       id: ver
+      shell: bash
       run: |
         if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
           TAG="${GITHUB_REF_NAME}"
@@ -39,6 +40,7 @@ jobs:
         echo "name=TG-Proxy-${VERSION}" >> "$GITHUB_OUTPUT"
 
     - name: Check version alignment with source
+      shell: bash
       run: |
         VERSION="${{ steps.ver.outputs.version }}"
         CODE_VERSION="$(grep -oE '__version__ = "[^"]+"' proxy/__init__.py | head -n1 | sed -E 's/.*"([^"]*)".*/\1/')"
@@ -69,7 +71,7 @@ jobs:
       run: |
         pyinstaller packaging/macos.spec
         chmod +x packaging/dmg/build_dmg.sh
-        packaging/dmg/build_dmg.sh "dist/TG FREE with 🖤 From KatYa && Gegaremant.app" "TG-Proxy" "dist/TG-Proxy-${{ steps.ver.outputs.version }}-MAC.dmg"
+        packaging/dmg/build_dmg.sh "dist/YaProFun©TgProxy.app" "TG-Proxy" "dist/TG-Proxy-${{ steps.ver.outputs.version }}-MAC.dmg"
 
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
@@ -90,6 +92,7 @@ jobs:
 
     - name: Resolve release version from tag
       id: ver
+      shell: bash
       run: |
         if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
           TAG="${GITHUB_REF_NAME}"
@@ -106,6 +109,7 @@ jobs:
         echo "name=TG-Proxy-${VERSION}" >> "$GITHUB_OUTPUT"
 
     - name: Check version alignment with source
+      shell: bash
       run: |
         VERSION="${{ steps.ver.outputs.version }}"
         CODE_VERSION="$(grep -oE '__version__ = "[^"]+"' proxy/__init__.py | head -n1 | sed -E 's/.*"([^"]*)".*/\1/')"
