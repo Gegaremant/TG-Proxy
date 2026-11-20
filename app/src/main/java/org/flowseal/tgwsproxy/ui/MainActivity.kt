@@ -20,8 +20,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -56,6 +58,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -188,19 +191,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) {}
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-
+        // Permissions are requested by the first-run wizard in MainScreen, one
+        // at a time. Requesting POST_NOTIFICATIONS here used to stack a system
+        // dialog on top of the setup dialog as soon as the app opened.
         setContent {
             val config = remember { ProxyConfig(this) }
             var themeMode by remember { mutableStateOf(config.themeMode) }
@@ -295,7 +291,7 @@ private val DarkColorScheme = darkColorScheme(
 val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
 @Composable
-fun TgWsProxyTheme(themeMode: String = "system", content: @Composable () -> Unit) {
+fun TgWsProxyTheme(themeMode: String = "dark", content: @Composable () -> Unit) {
     val isDark = when (themeMode) {
         "dark" -> true
         "light" -> false
@@ -307,6 +303,55 @@ fun TgWsProxyTheme(themeMode: String = "system", content: @Composable () -> Unit
     }
 }
 
+// --- Glass style -----------------------------------------------------------
+// Jetpack Compose has no built-in blur modifier without an extra dependency.
+// A translucent fill plus a hairline border gives the same frosted-glass read
+// over the background image while keeping the app dependency-free.
+
+@Composable
+fun glassCardColors(): CardColors {
+    val dark = LocalIsDarkTheme.current
+    return CardDefaults.cardColors(
+        containerColor = if (dark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.45f),
+        contentColor = MaterialTheme.colorScheme.onSurface
+    )
+}
+
+@Composable
+fun glassButtonColors(): ButtonColors {
+    val dark = LocalIsDarkTheme.current
+    return ButtonDefaults.buttonColors(
+        containerColor = if (dark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.60f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        disabledContainerColor = if (dark) Color.White.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.30f),
+        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    )
+}
+
+@Composable
+fun glassBorder(): BorderStroke {
+    val dark = LocalIsDarkTheme.current
+    return BorderStroke(
+        width = 1.dp,
+        color = if (dark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f)
+    )
+}
+
+@Composable
+fun Modifier.glassSurface(corner: Dp = 12.dp): Modifier {
+    val dark = LocalIsDarkTheme.current
+    return this
+        .background(
+            color = if (dark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.45f),
+            shape = RoundedCornerShape(corner)
+        )
+        .border(
+            width = 1.dp,
+            color = if (dark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f),
+            shape = RoundedCornerShape(corner)
+        )
+}
+
 // --- Main Screen ---
 
 /** Один пункт чек-листа готовности: что проверяем, статус и кнопка «Включить». */
@@ -316,6 +361,9 @@ data class ReadinessItem(
     /** Пункт без программной проверки: открываем настройки, пользователь
      * выключает переключатель вручную. В агрегат «всё готово» не входит. */
     val manual: Boolean = false,
+    /** Обязательное разрешение/спецдоступ. Только после того, как все такие
+     * пункты выполнены, разрешены проверка канала и запуск прокси. */
+    val required: Boolean = true,
     val action: () -> Unit
 )
 
@@ -369,11 +417,11 @@ fun computeReadinessItems(
     val manualItems = mutableListOf<ReadinessItem>(
         ReadinessItem(context.getString(R.string.readiness_pause_unused), false,
             action = { openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS) },
-            manual = true
+            manual = true, required = false
         ),
         ReadinessItem(context.getString(R.string.readiness_stop_idle), false,
             action = { openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS) },
-            manual = true
+            manual = true, required = false
         )
     )
 
@@ -394,7 +442,7 @@ fun computeReadinessItems(
                     }
                     context.startActivity(intent)
                 },
-                manual = true
+                manual = true, required = false
             )
         )
         manualItems.add(
@@ -405,12 +453,25 @@ fun computeReadinessItems(
                     }
                     context.startActivity(intent)
                 },
-                manual = true
+                manual = true, required = false
             )
         )
     }
 
+    // Порядок обязательных пунктов = порядок запросов на первом запуске:
+    // сначала runtime-разрешение (уведомления), затем спецдоступы.
     return listOf(
+        ReadinessItem(context.getString(R.string.readiness_notifications), notificationsOk) {
+            if (Build.VERSION.SDK_INT >= 33) {
+                requestNotifications()
+            } else {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    })
+                } catch (_: Exception) {}
+            }
+        },
         ReadinessItem(context.getString(R.string.readiness_battery), batteryOk) {
             try {
                 val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -437,25 +498,14 @@ fun computeReadinessItems(
                 } catch (_: Exception) {}
             }
         },
-        ReadinessItem(context.getString(R.string.readiness_autostart), autostartOk) {
-            config.autostart = true
-        },
-        ReadinessItem(context.getString(R.string.readiness_autoconnect), autoConnectOk) {
-            config.autoConnect = true
-        },
         ReadinessItem(context.getString(R.string.readiness_background), backgroundOk) {
             openSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
         },
-        ReadinessItem(context.getString(R.string.readiness_notifications), notificationsOk) {
-            if (Build.VERSION.SDK_INT >= 33) {
-                requestNotifications()
-            } else {
-                try {
-                    context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                    })
-                } catch (_: Exception) {}
-            }
+        ReadinessItem(context.getString(R.string.readiness_autostart), autostartOk, required = false) {
+            config.autostart = true
+        },
+        ReadinessItem(context.getString(R.string.readiness_autoconnect), autoConnectOk, required = false) {
+            config.autoConnect = true
         }
     ) + manualItems
         }
@@ -465,8 +515,8 @@ fun computeReadinessItems(
 @Composable
 fun ReadinessCard(items: List<ReadinessItem>) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        modifier = Modifier.fillMaxWidth().glassSurface(),
+        colors = glassCardColors()
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -545,19 +595,68 @@ fun MainScreen(
     var isRunning by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(listOf<String>()) }
     var autoConnectTriggered by remember { mutableStateOf(false) }
-    var readinessItems by remember { mutableStateOf(listOf<ReadinessItem>()) }
-    var showReadinessPrompt by remember { mutableStateOf(false) }
-    var readinessPromptSeen by remember { mutableStateOf(false) }
+    var isStarting by remember { mutableStateOf(false) }
+    var checkStatus by remember { mutableStateOf("") }
+    var showSetup by remember { mutableStateOf(false) }
+    var setupDismissed by remember { mutableStateOf(false) }
 
     val requestNotificationsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { _ -> }
-    
+    ) { _ ->
+        // Readiness is recomputed by the polling loop below; the wizard then
+        // advances to the next required permission on its own.
+    }
+
+    var readinessItems by remember {
+        mutableStateOf(
+            computeReadinessItems(context, config) {
+                requestNotificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        )
+    }
+    val requiredMissing = readinessItems.filter { it.required && !it.done }
+    val permissionsReady = requiredMissing.isEmpty()
+
     val scope = rememberCoroutineScope()
     var savedToast by remember { mutableStateOf<String?>(null) }
     savedToast?.let {
         Toast.makeText(context, it, Toast.LENGTH_LONG).show()
         savedToast = null
+    }
+
+    /**
+     * Check availability first, then start (or restart) the proxy. If the
+     * channel is unreachable we enable the alternative mode and retry once.
+     * Called only after all required permissions are granted.
+     */
+    val startWithCheck: suspend () -> Unit = {
+        if (!isStarting) {
+            isStarting = true
+            val wasRunning = getService()?.isProxyRunning == true
+            checkStatus = context.getString(R.string.channel_checking)
+            var reachable = withContext(Dispatchers.IO) { ChannelChecker.isAvailable() }
+            if (!reachable) {
+                config.noSecure = true
+                checkStatus = context.getString(R.string.channel_check_failed)
+            }
+            if (config.autoCheck) {
+                config.fakeTlsDomain = runSniAutoConfig(config)
+            }
+            onStart()
+            if (wasRunning || !reachable) {
+                // Apply the changed config to an already running service too.
+                onRestart()
+            }
+            if (!reachable) {
+                reachable = withContext(Dispatchers.IO) { ChannelChecker.isAvailable() }
+                savedToast = context.getString(
+                    if (reachable) R.string.channel_check_switched
+                    else R.string.channel_check_failed_final
+                )
+            }
+            checkStatus = ""
+            isStarting = false
+        }
     }
 
     val saveLogsLauncher = rememberLauncherForActivityResult(
@@ -592,14 +691,30 @@ fun MainScreen(
         while (true) {
             val service = getService()
             isRunning = service?.isProxyRunning == true
-            // Автоподключение: при открытии приложения прокси стартует сам
-            // (по умолчанию выключено, включается на первом запуске).
-            if (config.autoConnect && !autoConnectTriggered && bound.value && service != null) {
-                autoConnectTriggered = true
-                if (!isRunning) {
-                    onStart()
+            readinessItems = computeReadinessItems(context, config) {
+                requestNotificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            val missing = readinessItems.filter { it.required && !it.done }
+            val canConnect = missing.isEmpty()
+
+            if (config.isFirstLaunch && !canConnect && !setupDismissed) {
+                showSetup = true
+            }
+            if (canConnect) {
+                if (config.isFirstLaunch) {
+                    config.isFirstLaunch = false
+                    showSetup = false
+                    setupDismissed = false
+                }
+                // Проверка канала и подключение — только после всех разрешений.
+                if (config.autoConnect && !autoConnectTriggered && bound.value && service != null) {
+                    autoConnectTriggered = true
+                    if (!isRunning) {
+                        startWithCheck()
+                    }
                 }
             }
+
             if (isRunning) {
                 val s = service?.stats
                 if (s != null) {
@@ -608,63 +723,72 @@ fun MainScreen(
                 logs = service?.getRecentLogs() ?: emptyList()
             } else {
                 statsText = ""
-                // Проверка готовности: на каждый запуск и далее по кругу,
-                // пока пользователь не включит всё перечисленное.
-                readinessItems = computeReadinessItems(context, config, {
-                    requestNotificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                })
-                if (!readinessPromptSeen) {
-                    readinessPromptSeen = true
-                    if (readinessItems.any { !it.done && !it.manual }) {
-                        showReadinessPrompt = true
-                    }
-                }
             }
             delay(1000)
         }
     }
 
-    if (showReadinessPrompt) {
-        val missing = readinessItems.filter { !it.done && !it.manual }
-        if (missing.isNotEmpty()) {
-            AlertDialog(
-                onDismissRequest = { showReadinessPrompt = false },
-                title = { Text(stringResource(R.string.readiness_missing_title)) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            stringResource(R.string.readiness_missing_text),
-                            style = MaterialTheme.typography.bodySmall
+    // Первый запуск: показываем ровно один недостающий пункт за раз. Следующий
+    // появится только после того, как разрешение выдано (или пользователь
+    // вернётся из настроек и polling выше пересчитает readiness).
+    if (showSetup && requiredMissing.isNotEmpty()) {
+        val step = requiredMissing.first()
+        val stepIndex = requiredMissing.indexOf(step) + 1
+        AlertDialog(
+            onDismissRequest = {
+                showSetup = false
+                setupDismissed = true
+            },
+            title = { Text(stringResource(R.string.setup_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.setup_step, stepIndex, requiredMissing.size),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        stringResource(R.string.setup_text),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Info,
+                            null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
                         )
-                        missing.forEach { item ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Cancel,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(item.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                                TextButton(onClick = item.action) {
-                                    Text(stringResource(R.string.readiness_enable))
-                                }
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showReadinessPrompt = false }) {
-                        Text(stringResource(R.string.readiness_later))
+                        Spacer(Modifier.width(8.dp))
+                        Text(step.title, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-            )
-        }
+            },
+            confirmButton = {
+                Button(
+                    onClick = step.action,
+                    colors = glassButtonColors(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(stringResource(R.string.setup_grant))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showSetup = false
+                    setupDismissed = true
+                }) {
+                    Text(stringResource(R.string.readiness_later))
+                }
+            }
+        )
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
+                modifier = Modifier.background(
+                    if (LocalIsDarkTheme.current) Color(0x33000000) else Color.White.copy(alpha = 0.45f)
+                ),
                 title = {
                     Column {
                         Text(
@@ -672,22 +796,27 @@ fun MainScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.titleSmall,
-                            fontSize = 13.sp
+                            fontSize = 15.sp
                         )
+                        val signatureRes = if (Locale.getDefault().language.startsWith("ru")) {
+                            R.string.app_signature_ru
+                        } else {
+                            R.string.app_signature_en
+                        }
                         Text(
-                            stringResource(R.string.app_signature),
+                            stringResource(signatureRes),
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 8.sp,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.70f)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = Color.Transparent,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 actions = {
                     IconButton(onClick = {
@@ -727,7 +856,6 @@ fun MainScreen(
             ) {
                 StatusCard(isRunning, statsText, config)
 
-            var isStarting by remember { mutableStateOf(false) }
             var isAutoConfiguring by remember { mutableStateOf(false) }
             var autoConfigStatus by remember { mutableStateOf("") }
 
@@ -738,25 +866,21 @@ fun MainScreen(
                 if (!isRunning) {
                     Button(
                         onClick = {
-                            if (isStarting) return@Button
-                            isStarting = true
-                            scope.launch {
-                                // Optional auto connection check (settings toggle):
-                                // probe SNI domains and pick the fastest one before start.
-                                if (config.autoCheck) {
-                                    config.fakeTlsDomain = runSniAutoConfig(config)
-                                }
-                                onStart()
-                                isStarting = false
+                            if (!permissionsReady) {
+                                setupDismissed = false
+                                showSetup = true
+                                return@Button
                             }
+                            scope.launch { startWithCheck() }
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        colors = glassButtonColors(),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         if (isStarting) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 strokeWidth = 2.dp
                             )
                         } else {
@@ -765,7 +889,7 @@ fun MainScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(
                             when {
-                                isStarting && config.autoCheck -> stringResource(R.string.auto_config_running)
+                                isStarting && checkStatus.isNotEmpty() -> stringResource(R.string.channel_checking)
                                 else -> stringResource(R.string.start_proxy)
                             }
                         )
@@ -774,7 +898,11 @@ fun MainScreen(
                     Button(
                         onClick = onStop,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0x44E53935),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.Stop, null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))
@@ -783,13 +911,24 @@ fun MainScreen(
                     Spacer(Modifier.width(8.dp))
                     OutlinedButton(
                         onClick = onRestart,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        border = glassBorder(),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.Refresh, null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.reconnect))
                     }
                 }
+            }
+
+            if (checkStatus.isNotEmpty()) {
+                Text(
+                    checkStatus,
+                    modifier = Modifier.fillMaxWidth().glassSurface(10.dp).padding(10.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
 
             // Чек-лист готовности показываем всегда: и до запуска, и во
@@ -830,7 +969,9 @@ fun MainScreen(
                         ).show()
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().glassSurface(24.dp),
+                border = glassBorder(),
+                shape = RoundedCornerShape(24.dp)
             ) {
                 if (isAutoConfiguring) {
                     CircularProgressIndicator(
@@ -874,7 +1015,9 @@ fun MainScreen(
                     clipboardManager.setText(AnnotatedString(url))
                     Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().glassSurface(24.dp),
+                border = glassBorder(),
+                shape = RoundedCornerShape(24.dp)
             ) {
                 Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
@@ -891,7 +1034,9 @@ fun MainScreen(
                         Toast.makeText(context, "Telegram not installed", Toast.LENGTH_SHORT).show()
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().glassSurface(24.dp),
+                border = glassBorder(),
+                shape = RoundedCornerShape(24.dp)
             ) {
                 Text(stringResource(R.string.open_in_telegram))
             }
@@ -905,8 +1050,8 @@ fun MainScreen(
             if (config.showLogs && logs.isNotEmpty()) {
                 var logsExpanded by remember { mutableStateOf(false) }
                 Card(
-                    modifier = Modifier.fillMaxWidth().clickable { logsExpanded = !logsExpanded },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    modifier = Modifier.fillMaxWidth().glassSurface().clickable { logsExpanded = !logsExpanded },
+                    colors = glassCardColors()
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(
@@ -968,16 +1113,17 @@ fun MainScreen(
 @Composable
 fun StatusCard(isRunning: Boolean, statsText: String, config: ProxyConfig) {
     val isDark = LocalIsDarkTheme.current
-    val runningBg = if (isDark) Color(0xFF1B3A1B) else Color(0xFFE8F5E9)
-    val stoppedBg = if (isDark) Color(0xFF3A2E1B) else Color(0xFFFFF3E0)
+    val runningBg = if (isDark) Color(0x331B3A1B) else Color(0x66E8F5E9)
+    val stoppedBg = if (isDark) Color(0x333A2E1B) else Color(0x66FFF3E0)
     
     val statusLabel = if (isRunning) stringResource(R.string.status_running) else stringResource(R.string.status_stopped)
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().glassSurface(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isRunning) runningBg else stoppedBg
+            containerColor = if (isRunning) runningBg else stoppedBg,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1040,8 +1186,9 @@ fun SettingsPanel(
     var autostart by remember { mutableStateOf(config.autostart) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        modifier = Modifier.fillMaxWidth().glassSurface(),
+        shape = RoundedCornerShape(12.dp),
+        colors = glassCardColors()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1238,7 +1385,9 @@ fun SettingsPanel(
                     onRestart()
                     onClose()
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = glassButtonColors(),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text(stringResource(R.string.save))
             }

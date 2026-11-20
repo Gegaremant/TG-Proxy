@@ -9,9 +9,9 @@
 **TgProxy** is a unified, cross-platform Telegram MTProto WebSocket Proxy with FakeTLS support designed to bypass censorship and DPI. It bundles versions for **Android**, **Windows**, **macOS**, and **Linux** under a single umbrella, offering a stylish, consistent user interface and identical features across all platforms.
 
 ### ⬇️ Download for your OS
-[![Windows](https://img.shields.io/badge/Windows-1.2.10-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.10-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-MAC.dmg)
+[![Windows](https://img.shields.io/badge/Windows-1.2.11-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.11-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.11-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.11-MAC.dmg)
 
-[![Linux](https://img.shields.io/badge/Linux-1.2.10-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Linux) [![Android](https://img.shields.io/badge/Android-1.2.10-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Android.apk)
+[![Linux](https://img.shields.io/badge/Linux-1.2.11-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.11-Linux) [![Android](https://img.shields.io/badge/Android-1.2.11-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.11-Android.apk)
 
 [⬇️ DOWNLOAD LATEST RELEASE](https://github.com/Gegaremant/TG-Proxy/releases/latest)
 
@@ -61,7 +61,7 @@ settings and enable **"Disable TLS for CF-proxy and CF-worker"** — connections
 then use plain HTTP on port 80. Telegram traffic is still protected by MTProto;
 only the connection metadata to Cloudflare becomes visible to the provider.
 
-Since 1.2.10 connect and read timeouts are separate, DNS shares one deadline,
+Since 1.2.11 connect and read timeouts are separate, DNS shares one deadline,
 and cooldowns/attempt counts are bounded — a single failure no longer locks the
 proxy in a permanent cooldown.
 </details>

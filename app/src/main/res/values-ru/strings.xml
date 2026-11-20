@@ -1,7 +1,17 @@
 <resources>
     <string name="app_name">TgProxy</string>
-    <string name="app_signature">Build between dreaming and waking, forged in a daring union of human and machine. Рождено на грани сна и яви в дерзком союзе человека и машины.</string>
-    <string name="no_secure">Выключить TLS для CF-прокси и CF-worker</string>
+    <string name="app_signature_en">Build between dreaming and waking, forged in a daring union of human and machine.</string>
+    <string name="app_signature_ru">Рождено на грани сна и яви в дерзком союзе человека и машины.</string>
+    <string name="no_secure">Альтернативный режим</string>
+    <string name="setup_title">Первый запуск</string>
+    <string name="setup_step">Шаг %1$d из %2$d</string>
+    <string name="setup_text">Предоставьте обязательные разрешения для стабильной работы. Запросы идут по одному.</string>
+    <string name="setup_grant">Разрешить</string>
+    <string name="setup_waiting">Ожидание разрешения…</string>
+    <string name="channel_checking">Проверяю доступность t.me/YaProFun…</string>
+    <string name="channel_check_failed">Канал недоступен — включаю альтернативный режим</string>
+    <string name="channel_check_switched">Альтернативный режим включён — канал доступен</string>
+    <string name="channel_check_failed_final">Канал недоступен и в альтернативном режиме</string>
     <string name="status_running">Статус: ЗАПУЩЕН</string>
     <string name="status_stopped">Статус: ОСТАНОВЛЕН</string>
     <string name="start_proxy">Запустить</string>

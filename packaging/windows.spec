@@ -68,7 +68,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='TgProxy-1.2.10-Windows',
+    name='TgProxy-1.2.11-Windows',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

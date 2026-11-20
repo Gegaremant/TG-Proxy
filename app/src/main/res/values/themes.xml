@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.TgWsProxy" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Compose owns the actual colors; keep a platform theme that exists on
+         every API level and force a dark startup background. -->
+    <style name="Theme.TgWsProxy" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

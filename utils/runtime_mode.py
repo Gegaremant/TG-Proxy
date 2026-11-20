@@ -33,7 +33,7 @@ def _proc_mode(proc) -> Optional[str]:
     if "tg-ws-proxy" in joined:
         return SERVICE_MODE
 
-    # GUI frozen binary: TgProxy-1.2.10-Linux (also accept the legacy
+    # GUI frozen binary: TgProxy-1.2.11-Linux (also accept the legacy
     # TG-Proxy-1.x.x-Linux name so an older build is still detected).
     gui_names = ("tgproxy", "tg-proxy")
     if any(n in name for n in gui_names) and "linux" in name:

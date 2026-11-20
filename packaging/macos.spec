@@ -96,8 +96,8 @@ app = BUNDLE(
     info_plist={
         'CFBundleName': 'TgProxy',
         'CFBundleDisplayName': 'TgProxy',
-        'CFBundleShortVersionString': '1.2.10',
-        'CFBundleVersion': '1.2.10',
+        'CFBundleShortVersionString': '1.2.11',
+        'CFBundleVersion': '1.2.11',
         'LSMinimumSystemVersion': '10.15',
         'LSUIElement': True,
         'NSHighResolutionCapable': True,

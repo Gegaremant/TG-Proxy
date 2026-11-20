@@ -1,5 +1,5 @@
 [Unit]
-Description=YaProFun©TgProxy - Telegram MTProto WebSocket Proxy
+Description=TgProxy - Telegram MTProto WebSocket Proxy
 After=network-online.target
 Wants=network-online.target
 

@@ -18,8 +18,8 @@
 #   ./install.sh                    # скачать последний релиз и установить
 #   ./install.sh install            # то же самое
 #   ./install.sh run                # скачать последний релиз и сразу запустить (без установки)
-#   ./install.sh install ./TgProxy-1.2.10-Linux   # установить уже скачанный файл
-#   ./install.sh run    ./TgProxy-1.2.10-Linux   # запустить уже скачанный файл
+#   ./install.sh install ./TgProxy-1.2.11-Linux   # установить уже скачанный файл
+#   ./install.sh run    ./TgProxy-1.2.11-Linux   # запустить уже скачанный файл
 #   ./install.sh uninstall          # удалить установленную копию
 #   ./install.sh --service          # дополнительно установить headless systemd-сервис
 #   ./install.sh --tg               # дополнительно установить/обновить Telegram Desktop

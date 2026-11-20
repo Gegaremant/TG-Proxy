@@ -77,9 +77,9 @@ class ProxyConfig(context: Context) {
         get() = prefs.getString("fake_tls_domain", "sberbank.ru") ?: "sberbank.ru"
         set(value) = prefs.edit().putString("fake_tls_domain", value).apply()
 
-    /** Theme mode: "system", "light", or "dark" */
+    /** Theme mode: "system", "light", or "dark". Dark is the default. */
     var themeMode: String
-        get() = prefs.getString("theme_mode", "system") ?: "system"
+        get() = prefs.getString("theme_mode", "dark") ?: "dark"
         set(value) = prefs.edit().putString("theme_mode", value).apply()
 
     var language: String

@@ -7,9 +7,9 @@
 [English Version / Английская версия](README_en.md)
 
 ### ⬇️ Скачать для своей ОС
-[![Windows](https://img.shields.io/badge/Windows-1.2.10-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.10-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-MAC.dmg)
+[![Windows](https://img.shields.io/badge/Windows-1.2.11-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.11-Windows.exe) [![macOS](https://img.shields.io/badge/macOS-1.2.11-333333?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.11-MAC.dmg)
 
-[![Linux](https://img.shields.io/badge/Linux-1.2.10-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Linux) [![Android](https://img.shields.io/badge/Android-1.2.10-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.10-Android.apk)
+[![Linux](https://img.shields.io/badge/Linux-1.2.11-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.11-Linux) [![Android](https://img.shields.io/badge/Android-1.2.11-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Gegaremant/TG-Proxy/releases/latest/download/TgProxy-1.2.11-Android.apk)
 
 **TgProxy** — это единое кроссплатформенное приложение для обхода блокировок Telegram на основе MTProto WebSocket Proxy с поддержкой FakeTLS. Оно объединяет в себе версии для **Android**, **Windows**, **macOS** и **Linux** под одним капотом, предлагая единый стильный интерфейс и одинаковый набор функций на всех платформах.
 
@@ -65,7 +65,7 @@ One UI и др.) — пункты чек-листа с кнопкой «Откр
 пойдёт на 80-м порту в открытом виде. Содержимое переписки по-прежнему защищено
 MTProto; провайдер увидит только метаданные подключения к Cloudflare.
 
-Начиная с 1.2.10 таймауты connect/read разделены, DNS укладывается в общий
+Начиная с 1.2.11 таймауты connect/read разделены, DNS укладывается в общий
 бюджет, а кулдауны и число попыток ограничены — «вечный» кулдаун после первого
 же сбоя больше не воспроизводится.
 </details>
